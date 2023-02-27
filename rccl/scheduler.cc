@@ -12,19 +12,19 @@
 
 #define __hidden __attribute__ ((visibility("hidden")))
 
-#define MSCCL_SCHEDULER_NAME "MSCCLExampleScheduler"
+#define MSCCL_SCHEDULER_NAME "MSCCLScheduler"
 
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
+static const char* mscclAlgoDefaultDir = "/opt/rocm/share/rccl/msccl-algorithms";
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
 
 // Load meta information of algorithms
-__hidden ncclResult_t mscclExampleSchedulerInit() {
+__hidden ncclResult_t mscclSchedulerInit() {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
   if (mscclAlgoDir == nullptr) {
-    fprintf(stderr, "%s: MSCCL_ALGO_DIR empty\n", MSCCL_SCHEDULER_NAME);
-    return ncclInvalidUsage;
+    mscclAlgoDir = mscclAlgoDefaultDir;
   }
   struct dirent *entry = nullptr;
   DIR *dp = nullptr;
@@ -75,7 +75,7 @@ static __inline__ int ncclTypeSize(ncclDataType_t type) {
 }
 
 // Select algorithm, load if necessary
-__hidden ncclResult_t mscclExampleSchedulerSelectAlgo(struct mscclSchedulerParam* param) {
+__hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param) {
   ncclResult_t ret = ncclSuccess;
 
   param->scheduled = false;
@@ -125,7 +125,7 @@ __hidden ncclResult_t mscclExampleSchedulerSelectAlgo(struct mscclSchedulerParam
   return ncclSuccess;
 }
 
-__hidden ncclResult_t mscclExampleSchedulerTearDown() {
+__hidden ncclResult_t mscclSchedulerTearDown() {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   for (auto &m : rankToAlgoHandles) {
     for (auto &p : m) {
@@ -142,7 +142,7 @@ __hidden ncclResult_t mscclExampleSchedulerTearDown() {
 
 mscclSchedulerInterface mscclScheduler = {
   .name = MSCCL_SCHEDULER_NAME,
-  .init = mscclExampleSchedulerInit,
-  .selectAlgo = mscclExampleSchedulerSelectAlgo,
-  .tearDown = mscclExampleSchedulerTearDown,
+  .init = mscclSchedulerInit,
+  .selectAlgo = mscclSchedulerSelectAlgo,
+  .tearDown = mscclSchedulerTearDown,
 };

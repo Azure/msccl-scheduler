@@ -1,11 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-ROCM_HOME ?= "/opt/rocm"
 RCCL_BIN_HOME ?= ""
 RCCL_SRC_HOME ?= ""
-INC := -I$(ROCM_HOME)/include -I$(RCCL_BIN_HOME)/include -I$(RCCL_SRC_HOME)/src/include
-LNK := -L$(RCCL_BIN_HOME) -lrccl
+INC := -I$(RCCL_BIN_HOME)/include -I$(RCCL_SRC_HOME)/src/include
 SCHEDULER_SO := libmsccl-scheduler.so
 
 default: $(SCHEDULER_SO)
