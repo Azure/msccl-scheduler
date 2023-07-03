@@ -7,15 +7,22 @@
 #include <vector>
 #include <map>
 #include <dirent.h>
+#include <dlfcn.h>
+#include <link.h>
 #include "rccl/rccl.h"
 #include "parser.h"
 
 #define __hidden __attribute__ ((visibility("hidden")))
 
-#define MSCCL_SCHEDULER_NAME "MSCCLScheduler"
+#define MSCCL_SCHEDULER_NAME "github.com/microsoft/msccl-scheduler"
 
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
-static const char* mscclAlgoDefaultDir = "/opt/rocm/share/rccl/msccl-algorithms";
+static const char* mscclAlgoDefaultDir = "msccl-algorithms";
+extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
+static const char* mscclUnitTestAlgoDefaultDir = "msccl-unit-test-algorithms";
+static const char* mscclAlgoShareDirPath = "share/rccl/msccl-algorithms";
+static const char* mscclUnitTestAlgoShareDirPath = "share/rccl/msccl-unit-test-algorithms";
+
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
 
@@ -23,22 +30,47 @@ static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
 __hidden ncclResult_t mscclSchedulerInit() {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
+  const char* mscclAlgoShareDir = nullptr;
+  std::string mscclAlgoDirStr;
+  std::string mscclAlgoShareDirStr;
+  const char *fullDirPath = nullptr;
   if (mscclAlgoDir == nullptr) {
-    mscclAlgoDir = mscclAlgoDefaultDir;
+    // Try to find default algorithm directory based on librccl.so path
+    Dl_info dl_info;
+    struct link_map *link_map_ptr = nullptr;
+    if (!dladdr1((void *)ncclAllReduce, &dl_info, (void **)&link_map_ptr, RTLD_DL_LINKMAP)) {
+      fprintf(stderr, "%s: dladdr1 failed", MSCCL_SCHEDULER_NAME);
+      return ncclInvalidUsage;
+    }
+    std::string selfLibPath = link_map_ptr->l_name;
+    mscclAlgoDirStr = selfLibPath.substr(0, selfLibPath.find_last_of("/\\") + 1);
+    mscclAlgoDirStr += (mscclUnitTestMode && mscclUnitTestMode()) ? mscclUnitTestAlgoDefaultDir : mscclAlgoDefaultDir;
+    mscclAlgoDir = mscclAlgoDirStr.c_str();
+    // Get share Directory Paths
+    mscclAlgoShareDirStr = selfLibPath.substr(0, selfLibPath.find_first_of("lib") );
+    mscclAlgoShareDirStr += (mscclUnitTestMode && mscclUnitTestMode()) ? mscclUnitTestAlgoShareDirPath : mscclAlgoShareDirPath;
+    mscclAlgoShareDir = mscclAlgoShareDirStr.c_str();
   }
   struct dirent *entry = nullptr;
   DIR *dp = nullptr;
   dp = opendir(mscclAlgoDir);
   if (dp == nullptr) {
-    fprintf(stderr, "%s: open algorithm directory %s failed\n", MSCCL_SCHEDULER_NAME, mscclAlgoDir);
-    return ncclInvalidUsage;
+    // Try to find the algorithm directory under share folder based on librccl.so path
+    dp = opendir(mscclAlgoShareDir);
+    if (dp == nullptr) {
+      fprintf(stderr, "%s: open algorithm in share directory %s failed", MSCCL_SCHEDULER_NAME, mscclAlgoShareDir);
+      return ncclInvalidUsage;
+    }
+    fullDirPath = mscclAlgoShareDir;
+  } else {
+    fullDirPath = mscclAlgoDir;
   }
   while ((entry = readdir(dp))) {
     if (entry->d_type != DT_LNK && entry->d_type != DT_REG) {
       continue;
     }
     mscclAlgoMetas.emplace_back();
-    std::string fullPath = mscclAlgoDir;
+    std::string fullPath = fullDirPath;
     fullPath += "/";
     fullPath += entry->d_name;
     tmpRet = mscclGetAlgoMetaFromXmlFile(fullPath.c_str(), &(mscclAlgoMetas.back()));
@@ -46,7 +78,10 @@ __hidden ncclResult_t mscclSchedulerInit() {
       ret = tmpRet;
     }
   }
-  closedir(dp);
+  if (closedir(dp)) {
+    fprintf(stderr, "%s: closedir failed, error %d", MSCCL_SCHEDULER_NAME, errno);
+    return ncclInvalidUsage;
+  }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
   return ret;
 }
@@ -109,7 +144,7 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
         (isInPlace ? m.inPlace : m.outOfPlace)) {
       // If not loaded for current rank, load it
       if (rankToAlgoHandles[i].find(param->rank) == rankToAlgoHandles[i].end()) {
-        mscclAlgoHandle_t algoHandle = 1234;
+        mscclAlgoHandle_t algoHandle;
         ret = mscclLoadAlgo(m.filePath.c_str(), &algoHandle, param->rank);
         if (ret != ncclSuccess) {
           return ret;
@@ -144,5 +179,5 @@ mscclSchedulerInterface mscclScheduler = {
   .name = MSCCL_SCHEDULER_NAME,
   .init = mscclSchedulerInit,
   .selectAlgo = mscclSchedulerSelectAlgo,
-  .tearDown = mscclSchedulerTearDown,
+  .teardown = mscclSchedulerTearDown,
 };
