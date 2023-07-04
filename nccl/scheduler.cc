@@ -9,7 +9,7 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <link.h>
-#include "rccl/rccl.h"
+#include "nccl.h"
 #include "parser.h"
 
 #define __hidden __attribute__ ((visibility("hidden")))
@@ -20,8 +20,8 @@ static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
 extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
 static const char* mscclUnitTestAlgoDefaultDir = "msccl-unit-test-algorithms";
-static const char* mscclAlgoShareDirPath = "share/rccl/msccl-algorithms";
-static const char* mscclUnitTestAlgoShareDirPath = "share/rccl/msccl-unit-test-algorithms";
+static const char* mscclAlgoShareDirPath = "share/nccl/msccl-algorithms";
+static const char* mscclUnitTestAlgoShareDirPath = "share/nccl/msccl-unit-test-algorithms";
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
@@ -35,7 +35,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
   std::string mscclAlgoShareDirStr;
   const char *fullDirPath = nullptr;
   if (mscclAlgoDir == nullptr) {
-    // Try to find default algorithm directory based on librccl.so path
+    // Try to find default algorithm directory based on libnccl.so path
     Dl_info dl_info;
     struct link_map *link_map_ptr = nullptr;
     if (!dladdr1((void *)ncclAllReduce, &dl_info, (void **)&link_map_ptr, RTLD_DL_LINKMAP)) {
@@ -55,7 +55,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
   DIR *dp = nullptr;
   dp = opendir(mscclAlgoDir);
   if (dp == nullptr) {
-    // Try to find the algorithm directory under share folder based on librccl.so path
+    // Try to find the algorithm directory under share folder based on libnccl.so path
     dp = opendir(mscclAlgoShareDir);
     if (dp == nullptr) {
       fprintf(stderr, "%s: open algorithm in share directory %s failed", MSCCL_SCHEDULER_NAME, mscclAlgoShareDir);
