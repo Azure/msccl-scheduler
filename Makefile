@@ -16,7 +16,7 @@ endif
 default: $(SCHEDULER_SO)
 
 $(SCHEDULER_SO): scheduler.cc parser.cc
-	$(CXX) $(INC) $(CXXFLAGS) -o $@ $(LDFLAGS) $^ $(LNK)
+	$(CXX) $(INC) $(CXXFLAGS) -o $@ $(LDFLAGS) -lcurl $^ $(LNK)
 
 clean:
 	rm -f $(SCHEDULER_SO)
