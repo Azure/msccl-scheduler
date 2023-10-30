@@ -13,10 +13,10 @@
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 
-#ifdef NCCL
-  #include "nccl.h"
-#elif defined(RCCL)
+#ifdef RCCL
   #include "rccl/rccl.h"
+#else 
+  #include "nccl.h"
 #endif
 #include "parser.h"
 
@@ -28,10 +28,10 @@ static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
 extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
 static const char* mscclUnitTestAlgoDefaultDir = "msccl-unit-test-algorithms";
-#ifdef NCCL
-  static const char* mscclAlgoShareDirPath = "share/msccl-algorithms/nccl";
-#elif defined(RCCL)
-  static const char* mscclAlgoShareDirPath = "share/msccl-algorithms/rccl";
+#ifdef RCCL
+  static const char* mscclAlgoShareDirPath = "share/rccl/msccl-algorithms";
+#else
+  static const char* mscclAlgoShareDirPath = "share/nccl/msccl-algorithms";
 #endif
 static const char* mscclUnitTestAlgoShareDirPath = "share/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
@@ -90,10 +90,10 @@ __hidden ncclResult_t mscclSchedulerInit() {
   std::string mscclAlgoShareDirStr;
   const char *fullDirPath = nullptr;
   if (mscclAlgoDir == nullptr) {
-    // Try to find default algorithm directory based on libnccl.so or librccl.so path
+    // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
     Dl_info dl_info;
     struct link_map *link_map_ptr = nullptr;
-    if (!dladdr1((void *)ncclAllReduce, &dl_info, (void **)&link_map_ptr, RTLD_DL_LINKMAP)) {
+    if (!dladdr1((void *)mscclSchedulerInit, &dl_info, (void **)&link_map_ptr, RTLD_DL_LINKMAP)) {
       fprintf(stderr, "%s: dladdr1 failed", MSCCL_SCHEDULER_NAME);
       return ncclInvalidUsage;
     }
