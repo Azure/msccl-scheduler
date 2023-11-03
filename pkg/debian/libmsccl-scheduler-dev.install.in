@@ -1,0 +1,2 @@
+lib/libmsccl-scheduler.so /usr/lib/${pkg:MultiArch}
+lib/msccl-algorithms /usr/share/msccl-scheduler
