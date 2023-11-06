@@ -24,7 +24,7 @@ INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include
 
 ifeq ($(PLATFORM), RCCL)
 	CXXFLAGS := -fPIC -shared -DRCCL
-	LDFLAGS := -Wl,-soname,$(LIBNAME)
+	LDFLAGS := -Wl,-soname,$(LIBSONAME)
 endif
 
 default: build

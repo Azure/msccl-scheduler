@@ -2,12 +2,19 @@
 
 MSCCL scheduler selects optimal MSCCL algorithms for MSCCL executors. It implements a static algorithm selection policy. Given a folder containing MSCCL algorithm files and collective operation requirements, this scheduler picks proper algorithms by matching different applicable conditions, including collective operation type, message size range, in-place or out-of-place, scale, etc.
 
-## Build
+## PreRequest
+##### - libcurl:
+    $ sudo apt-get update
+    $ sudo apt-get install libcurl4-openssl-dev
+##### - nlohmann json library:
+    $ sudo apt-get update
+    $ sudo apt-get install nlohmann-json3-dev
 
-##### - NCCL:
+## Build
+##### - for nccl:
     $ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make
 
-##### - RCCL:
+##### - for rccl:
     $ CXX=/path/to/hipcc BIN_HOME=/path/to/rccl/binary SRC_HOME=/path/to/rccl/source make PLATFORM=RCCL
 
 ## Install
@@ -23,6 +30,7 @@ $ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source 
 $ # Build NCCL deb package for rccl
 $ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make pkg.debian.build PLATFORM=RCCL
 $ ls build/pkg/deb/
+$ apt install build/pkg/deb/libmsccl-scheduler1_1.0.0-1+cuda._amd64.deb
 ```
 
 ## Usage
