@@ -28,11 +28,7 @@ static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
 extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
 static const char* mscclUnitTestAlgoDefaultDir = "msccl-unit-test-algorithms";
-#ifdef RCCL
-  static const char* mscclAlgoShareDirPath = "..share/rccl/msccl-algorithms";
-#else
-  static const char* mscclAlgoShareDirPath = "..share/nccl/msccl-algorithms";
-#endif
+static const char* mscclAlgoShareDirPath = "share/msccl-scheduler/msccl-algorithms";
 static const char* mscclUnitTestAlgoShareDirPath = "..share/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
 
@@ -75,12 +71,6 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
     if (vmSize.find("ND") != std::string::npos && vmSize.find("A100") != std::string::npos) {
       updatedAlgoDir.append("/ndv4");
     }
-    else if (vmSize.find("NC") != std::string::npos && vmSize.find("A100") != std::string::npos) {
-      updatedAlgoDir.append("/ncv4");
-    }
-    else if (vmSize.find("ND") != std::string::npos && vmSize.find("H100") != std::string::npos) {
-      updatedAlgoDir.append("/ndv5");
-    }
     return updatedAlgoDir;
 }
 
@@ -106,7 +96,6 @@ __hidden ncclResult_t mscclSchedulerInit() {
     mscclAlgoDir = mscclAlgoDirStr.c_str();
     // Get share Directory Paths
     mscclAlgoShareDirStr = selfLibPath.substr(0, selfLibPath.find("lib"));
-    fprintf(stdout, "MSCCL: External Scheduler will use %s as share algorithm directory path\n", mscclAlgoShareDirStr.c_str());  
     mscclAlgoShareDirStr += (mscclUnitTestMode && mscclUnitTestMode()) ? mscclUnitTestAlgoShareDirPath : updateAlgoDirByVMSize(std::string(mscclAlgoShareDirPath));
     mscclAlgoShareDir = mscclAlgoShareDirStr.c_str();
   }
@@ -125,6 +114,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
   } else {
     fullDirPath = mscclAlgoDir;
   }
+  fprintf(stdout, "Using MSCCL Algo files from %s \n", fullDirPath);
   while ((entry = readdir(dp))) {
     if (entry->d_type != DT_LNK && entry->d_type != DT_REG) {
       continue;

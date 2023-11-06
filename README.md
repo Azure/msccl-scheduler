@@ -10,6 +10,21 @@ MSCCL scheduler selects optimal MSCCL algorithms for MSCCL executors. It impleme
 ##### - RCCL:
     $ CXX=/path/to/hipcc BIN_HOME=/path/to/rccl/binary SRC_HOME=/path/to/rccl/source make PLATFORM=RCCL
 
+## Install
+
+To install MSCCL scheduler on the system, create a package then install it as root.
+
+Debian/Ubuntu :
+```shell
+$ # Install tools to create debian packages
+$ sudo apt install build-essential devscripts debhelper fakeroot
+$ # Build NCCL deb package for nccl
+$ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make pkg.debian.build 
+$ # Build NCCL deb package for rccl
+$ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make pkg.debian.build PLATFORM=RCCL
+$ ls build/pkg/deb/
+```
+
 ## Usage
 
 When running applications using MSCCL, set the following environmental variables accordingly:
