@@ -18,13 +18,13 @@ LIBTARGET  := $(LIBNAME:%=%.$(SCHEDULER_MAJOR).$(SCHEDULER_MINOR).$(SCHEDULER_PA
 LICENSE_FILES := LICENSE.txt
 LICENSE_TARGETS := $(LICENSE_FILES:%=$(BUILDDIR)/%)
 
-CXXFLAGS := --compiler-options -fPIC,-shared,-g -DNCCL
+CXXFLAGS := --compiler-options -fPIC,-shared,-DNCCL
 LDFLAGS := --linker-options -soname,$(LIBSONAME)
 INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include
 
 ifeq ($(PLATFORM), RCCL)
-	CXXFLAGS := -fPIC -shared -DRCCL
-	LDFLAGS := -Wl,-soname,$(LIBSONAME)
+	CXXFLAGS := -fPIC -shared -fno-rtlib-add-rpath -DRCCL
+	LDFLAGS := -Wl,--as-needed, -Wl,--disable-new-dtags, -Wl,--build-id -Wl,-soname,$(LIBSONAME)
 endif
 
 default: build

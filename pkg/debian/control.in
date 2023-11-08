@@ -10,17 +10,19 @@ Section: libs
 Architecture: ${pkg:Arch}
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: MSCCL scheduler selects optimal MSCCL algorithms for MSCCL executors. 
- It implements a static algorithm selection policy. Given a folder containing MSCCL
- algorithm files and collective operation requirements, this scheduler picks proper 
- algorithms by matching different applicable conditions, including collective operation 
- type, message size range, in-place or out-of-place, scale, etc.
+ It implements a static algorithm selection policy. Given a folder containing
+ MSCCL algorithm files and collective operation requirements, this scheduler
+ picks proper algorithms by matching different applicable conditions, including
+ collective operation type, message size range, in-place or out-of-place, scale
+ , etc.
 
 Package: libmsccl-scheduler-dev
 Section: libdevel
 Architecture: ${pkg:Arch}
 Depends: ${misc:Depends}, ${shlibs:Depends}, libmsccl-scheduler${scheduler:Major} (= ${binary:Version})
 Description: MSCCL scheduler selects optimal MSCCL algorithms for MSCCL executors. 
- It implements a static algorithm selection policy. Given a folder containing MSCCL
- algorithm files and collective operation requirements, this scheduler picks proper 
- algorithms by matching different applicable conditions, including collective operation 
- type, message size range, in-place or out-of-place, scale, etc.
+ It implements a static algorithm selection policy. Given a folder containing
+ MSCCL algorithm files and collective operation requirements, this scheduler
+ picks proper algorithms by matching different applicable conditions, including
+ collective operation type, message size range, in-place or out-of-place, scale
+ , etc.

@@ -28,7 +28,7 @@ $ sudo apt install build-essential devscripts debhelper fakeroot
 $ # Build NCCL deb package for nccl
 $ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make pkg.debian.build 
 $ # Build NCCL deb package for rccl
-$ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make pkg.debian.build PLATFORM=RCCL
+$ CXX=/path/to/hipcc BIN_HOME=/path/to/rccl/binary SRC_HOME=/path/to/rccl/source make pkg.debian.build PLATFORM=RCCL
 $ ls build/pkg/deb/
 $ apt install build/pkg/deb/libmsccl-scheduler1_1.0.0-1+cuda._amd64.deb
 ```
@@ -39,7 +39,7 @@ When running applications using MSCCL, set the following environmental variables
 1. Add path to the built binary of this scheduler to `LD_PRELOAD`.
 2. Set environment variable 
    **- Nccl:** `NCCL_MSCCL_ENABLE` to 1.   
-   **- Rccl**: Set `RCCL_MSCCL_ENABLE` to 1.
+   **- Rccl:** `RCCL_MSCCL_ENABLE` to 1.
 1. Set `MSCCL_ALGO_DIR` to the directory containing all MSCCL algorithm candidates.
 
 ## Contributing

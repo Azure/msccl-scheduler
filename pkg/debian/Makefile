@@ -38,8 +38,6 @@ $(DEBPREPDIR)/% : %.in
 	    -e "s/\$${scheduler:Minor}/$(SCHEDULER_MINOR)/g" \
 	    -e "s/\$${scheduler:Patch}/$(SCHEDULER_PATCH)/g" \
 	    -e "s/\$${scheduler:Suffix}/$(SCHEDULER_SUFFIX)/g" \
-	    -e "s/\$${cuda:Major}/$(CUDA_MAJOR)/g" \
-	    -e "s/\$${cuda:Minor}/$(CUDA_MINOR)/g" \
 	    -e "s/\$${pkg:Revision}/$(PKG_REVISION)/g" \
 	    -e "s/\$${pkg:Timestamp}/$(PKG_TIMESTAMP)/g" \
 	    -e "s/\$${pkg:Arch}/$(PKG_ARCH)/g" \
