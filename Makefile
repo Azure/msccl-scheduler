@@ -23,8 +23,8 @@ LDFLAGS := --linker-options -soname,$(LIBSONAME)
 INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include
 
 ifeq ($(PLATFORM), RCCL)
-	CXXFLAGS := -fPIC -shared -fno-rtlib-add-rpath -DRCCL
-	LDFLAGS := -Wl,--as-needed, -Wl,--disable-new-dtags, -Wl,--build-id -Wl,-soname,$(LIBSONAME)
+	CXXFLAGS := -fPIC -shared -DRCCL
+	LDFLAGS := -Wl,--as-needed, -Wl,--build-id, -Wl,-soname,$(LIBSONAME)
 endif
 
 default: build
@@ -41,6 +41,7 @@ $(LIBDIR)/$(LIBTARGET): src/scheduler.cc src/parser.cc
 	@printf "Compiling & Linking    %-35s > %s\n" $(LIBTARGET) $@ $^
 	mkdir -p $(LIBDIR)
 	$(CXX) $(INC) $(CXXFLAGS) -o $@ $(LDFLAGS) -lcurl $^ $(LNK)
+	chrpath -d $(LIBDIR)/$(LIBTARGET)
 	ln -sf $(LIBSONAME) $(LIBDIR)/$(LIBNAME)
 	ln -sf $(LIBTARGET) $(LIBDIR)/$(LIBSONAME)
 
