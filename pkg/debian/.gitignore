@@ -1,0 +1,7 @@
+/*.debhelper.log
+/*.debhelper
+/*.substvars
+/tmp/
+/files
+/libmsccl-scheduler1/
+/libmsccl-scheduler-dev/

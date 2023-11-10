@@ -1,0 +1,5 @@
+msccl-scheduler (${scheduler:Major}.${scheduler:Minor}.${scheduler:Patch}${scheduler:Suffix}-${pkg:Revision}) trusty; urgency=medium
+
+  * Automatic Debian package from build
+
+ -- msccl-scheduler <liand@microsoft.com>  ${pkg:Timestamp}

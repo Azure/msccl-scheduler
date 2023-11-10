@@ -1,0 +1,2 @@
+lib/libmsccl-scheduler.so.${scheduler:Major} /usr/lib/${pkg:MultiArch}
+lib/libmsccl-scheduler.so.${scheduler:Major}.${scheduler:Minor}.${scheduler:Patch} /usr/lib/${pkg:MultiArch}

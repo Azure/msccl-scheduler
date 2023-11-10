@@ -1,6 +1,46 @@
 # MSCCL scheduler
 
-MSCCL scheduler selects optimal MSCCL algorithms for MSCCL executors.
+MSCCL scheduler selects optimal MSCCL algorithms for MSCCL executors. It implements a static algorithm selection policy. Given a folder containing MSCCL algorithm files and collective operation requirements, this scheduler picks proper algorithms by matching different applicable conditions, including collective operation type, message size range, in-place or out-of-place, scale, etc.
+
+## PreRequest
+##### - libcurl:
+    $ sudo apt-get update
+    $ sudo apt-get install libcurl4-openssl-dev
+##### - nlohmann json library:
+    $ sudo apt-get update
+    $ sudo apt-get install nlohmann-json3-dev
+
+## Build
+##### - for nccl:
+    $ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make
+
+##### - for rccl:
+    $ CXX=/path/to/hipcc BIN_HOME=/path/to/rccl/binary SRC_HOME=/path/to/rccl/source make PLATFORM=RCCL
+
+## Install
+
+To install MSCCL scheduler on the system, create a package then install it as root.
+
+Debian/Ubuntu :
+```shell
+$ # Install tools to create debian packages
+$ sudo apt install build-essential devscripts debhelper fakeroot
+$ # Build NCCL deb package for nccl
+$ CXX=/path/to/nvcc BIN_HOME=/path/to/nccl/binary SRC_HOME=/path/to/nccl/source make pkg.debian.build 
+$ # Build NCCL deb package for rccl
+$ CXX=/path/to/hipcc BIN_HOME=/path/to/rccl/binary SRC_HOME=/path/to/rccl/source make pkg.debian.build PLATFORM=RCCL
+$ ls build/pkg/deb/
+$ apt install build/pkg/deb/libmsccl-scheduler1_1.0.0-1+cuda._amd64.deb
+```
+
+## Usage
+
+When running applications using MSCCL, set the following environmental variables accordingly:
+1. Add path to the built binary of this scheduler to `LD_PRELOAD`.
+2. Set environment variable 
+   **- Nccl:** `NCCL_MSCCL_ENABLE` to 1.   
+   **- Rccl:** `RCCL_MSCCL_ENABLE` to 1.
+1. Set `MSCCL_ALGO_DIR` to the directory containing all MSCCL algorithm candidates.
 
 ## Contributing
 
