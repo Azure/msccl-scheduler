@@ -32,6 +32,10 @@ static const char* mscclAlgoShareDirPath = "../share/msccl-scheduler/msccl-algor
 static const char* mscclUnitTestAlgoShareDirPath = "../share/msccl-scheduler/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
 
+static const char* LOG_INFO = "INFO";
+static const char* LOG_WARN = "WARN";
+static const char* LOG_ERROR = "ERROR";
+
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
 
@@ -59,7 +63,7 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 1L);
         res = curl_easy_perform(curl);
         if(res != CURLE_OK) {
-            fprintf(stderr, "%s: Get Azure VM Size failed: %s", MSCCL_SCHEDULER_NAME, curl_easy_strerror(res));
+            fprintf(stdout, "%s: %s Get Azure VM Size failed: %s \n", MSCCL_SCHEDULER_NAME, LOG_WARN, curl_easy_strerror(res));
         }
         else {
             auto json = nlohmann::json::parse(readBuffer);
@@ -72,7 +76,7 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
       updatedAlgoDir.append("/ndv4");
     }
     else{
-      fprintf(stderr, "%s: there is no related algo file for the detected Azure VM SKU:%s been finded, MSCCL will use nccl as default communication channel", MSCCL_SCHEDULER_NAME, vmSize.c_str());
+      fprintf(stdout, "%s: %s There is no related algo file for the detected Azure VM SKU:%s been finded, MSCCL will use nccl as default communication channel \n", MSCCL_SCHEDULER_NAME, LOG_WARN, vmSize.c_str());
     }
     return updatedAlgoDir;
 }
@@ -90,7 +94,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
     Dl_info dl_info;
     struct link_map *link_map_ptr = nullptr;
     if (!dladdr1((void *)mscclSchedulerInit, &dl_info, (void **)&link_map_ptr, RTLD_DL_LINKMAP)) {
-      fprintf(stderr, "%s: dladdr1 failed", MSCCL_SCHEDULER_NAME);
+      fprintf(stdout, "%s: %s Get dladdr1 failed \n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
       return ncclInvalidUsage;
     }
     std::string selfLibPath = link_map_ptr->l_name;
@@ -102,7 +106,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
     mscclAlgoShareDirStr += (mscclUnitTestMode && mscclUnitTestMode()) ? mscclUnitTestAlgoShareDirPath : updateAlgoDirByVMSize(std::string(mscclAlgoShareDirPath));
     mscclAlgoShareDir = mscclAlgoShareDirStr.c_str();
   }
-  fprintf(stdout, "%s: External Scheduler will use %s as algorithm directory and %s as share algorithm directory\n", MSCCL_SCHEDULER_NAME, mscclAlgoDir, mscclAlgoShareDir);
+  fprintf(stdout, "%s: %s External Scheduler will use %s as algorithm directory and %s as share algorithm directory \n", MSCCL_SCHEDULER_NAME, LOG_INFO, mscclAlgoDir, mscclAlgoShareDir);
   struct dirent *entry = nullptr;
   DIR *dp = nullptr;
   dp = opendir(mscclAlgoDir);
@@ -110,15 +114,14 @@ __hidden ncclResult_t mscclSchedulerInit() {
     // Try to find the algorithm directory under share folder based on libmsccl-scheduler.so path
     dp = opendir(mscclAlgoShareDir);
     if (dp == nullptr) {
-      perror("opendir failed");
-      fprintf(stderr, "%s: open algorithm in share directory %s failed", MSCCL_SCHEDULER_NAME, mscclAlgoShareDir);
+      fprintf(stdout, "%s: %s Open algorithm in share directory %s failed \n", MSCCL_SCHEDULER_NAME, LOG_ERROR, mscclAlgoShareDir);
       return ncclInvalidUsage;
     }
     fullDirPath = mscclAlgoShareDir;
   } else {
     fullDirPath = mscclAlgoDir;
   }
-  fprintf(stdout, "%s: Using MSCCL Algo files from %s \n", MSCCL_SCHEDULER_NAME, fullDirPath);
+  fprintf(stdout, "%s: %s Using MSCCL Algo files from %s \n", MSCCL_SCHEDULER_NAME, LOG_INFO, fullDirPath);
   while ((entry = readdir(dp))) {
     if (entry->d_type != DT_LNK && entry->d_type != DT_REG) {
       continue;
@@ -133,7 +136,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
     }
   }
   if (closedir(dp)) {
-    fprintf(stderr, "%s: closedir failed, error %d", MSCCL_SCHEDULER_NAME, errno);
+    fprintf(stdout, "%s: %s Closedir failed, error %d \n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
     return ncclInvalidUsage;
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
