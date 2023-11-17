@@ -30,6 +30,8 @@ extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
 static const char* mscclUnitTestAlgoDefaultDir = "msccl-unit-test-algorithms";
 static const char* mscclAlgoShareDirPath = "../share/msccl-scheduler/msccl-algorithms";
 static const char* mscclUnitTestAlgoShareDirPath = "../share/msccl-scheduler/msccl-unit-test-algorithms";
+static const char* mscclPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-algorithms";
+static const char* mscclUnitTestPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
 
 static const char* LOG_INFO = "INFO";
@@ -86,8 +88,10 @@ __hidden ncclResult_t mscclSchedulerInit() {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
   const char* mscclAlgoShareDir = nullptr;
+  const char* mscclPackageInstalledAlgoShareDir = nullptr;
   std::string mscclAlgoDirStr;
   std::string mscclAlgoShareDirStr;
+  std::string mscclPackageInstalledAlgoShareDirStr;
   const char *fullDirPath = nullptr;
   if (mscclAlgoDir == nullptr) {
     // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
@@ -105,8 +109,12 @@ __hidden ncclResult_t mscclSchedulerInit() {
     mscclAlgoShareDirStr = selfLibPath.substr(0, selfLibPath.find_last_of("/\\") + 1);
     mscclAlgoShareDirStr += (mscclUnitTestMode && mscclUnitTestMode()) ? mscclUnitTestAlgoShareDirPath : updateAlgoDirByVMSize(std::string(mscclAlgoShareDirPath));
     mscclAlgoShareDir = mscclAlgoShareDirStr.c_str();
+    // Get Package Installed share Directory Paths
+    mscclPackageInstalledAlgoShareDirStr = (mscclUnitTestMode && mscclUnitTestMode()) ? mscclUnitTestPackageInstalledAlgoShareDirPath : mscclPackageInstalledAlgoShareDirPath;
+    mscclPackageInstalledAlgoShareDir = mscclPackageInstalledAlgoShareDirStr.c_str();
   }
-  fprintf(stdout, "%s: %s External Scheduler will use %s as algorithm directory and %s as share algorithm directory\n", MSCCL_SCHEDULER_NAME, LOG_INFO, mscclAlgoDir, mscclAlgoShareDir);
+  fprintf(stdout, "%s: %s External Scheduler will use %s as algorithm directory and %s as share algorithm directory and %s as package installed share algorithm directory\n", MSCCL_SCHEDULER_NAME, LOG_INFO, mscclAlgoDir, mscclAlgoShareDir, mscclPackageInstalledAlgoShareDir);
+  
   struct dirent *entry = nullptr;
   DIR *dp = nullptr;
   dp = opendir(mscclAlgoDir);
@@ -114,10 +122,17 @@ __hidden ncclResult_t mscclSchedulerInit() {
     // Try to find the algorithm directory under share folder based on libmsccl-scheduler.so path
     dp = opendir(mscclAlgoShareDir);
     if (dp == nullptr) {
-      fprintf(stdout, "%s: %s Open algorithm in share directory %s failed\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, mscclAlgoShareDir);
-      return ncclInvalidUsage;
+      //Try to find the algorithm directory under /usr/share folder which is package installed share algorithm directory
+      dp = opendir(mscclPackageInstalledAlgoShareDir);
+      if (dp == nullptr) {
+        fprintf(stdout, "%s: %s Open algorithm in share directory %s failed\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, mscclPackageInstalledAlgoShareDir);
+        return ncclInvalidUsage;
+      }
+      fullDirPath = mscclPackageInstalledAlgoShareDir;
+    } 
+    else{
+      fullDirPath = mscclAlgoShareDir;
     }
-    fullDirPath = mscclAlgoShareDir;
   } else {
     fullDirPath = mscclAlgoDir;
   }
