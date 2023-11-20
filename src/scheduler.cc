@@ -1,6 +1,6 @@
 /*************************************************************************
- * Copyright (c) Microsoft Corporation.
- * Licensed under the MIT License.
+ * Copyright (c) 2019-2023 Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See LICENSE.txt for license information
  ************************************************************************/
 
 #include <cstdio>
@@ -12,17 +12,17 @@
 #include <string>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <pthread.h>
 
 #ifdef RCCL
   #include "rccl/rccl.h"
 #else 
   #include "nccl.h"
 #endif
-#include "parser.h"
 
-#define __hidden __attribute__ ((visibility("hidden")))
-
-#define MSCCL_SCHEDULER_NAME "github.com/Azure/msccl-scheduler"
+#include "include/comm.h"
+#include "include/parser.h"
+#include "include/server.h"
 
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
@@ -33,10 +33,9 @@ static const char* mscclUnitTestAlgoShareDirPath = "../share/msccl-scheduler/msc
 static const char* mscclPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-algorithms";
 static const char* mscclUnitTestPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
-
-static const char* LOG_INFO = "INFO";
-static const char* LOG_WARN = "WARN";
-static const char* LOG_ERROR = "ERROR";
+static pthread_t detectionServerThread;  
+int world_rank;
+int detectionServerExit;
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
@@ -155,6 +154,15 @@ __hidden ncclResult_t mscclSchedulerInit() {
     return ncclInvalidUsage;
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  if (0 == world_rank && pthread_create(&detectionServerThread, NULL, detectionServer, NULL))
+  {
+    fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
+    return ncclInvalidUsage;
+  }
+  detectionServerExit=false;
+  
   return ret;
 }
 
@@ -244,6 +252,13 @@ __hidden ncclResult_t mscclSchedulerTearDown() {
   }
   mscclAlgoMetas.clear();
   rankToAlgoHandles.clear();
+
+  if (0 == world_rank)
+  {
+    detectionServerExit = true;
+    pthread_join(detectionServerThread, NULL);
+  }
+
   return ret;
 }
 

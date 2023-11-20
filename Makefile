@@ -7,6 +7,7 @@ PREFIX ?= /usr/local
 PLATFORM ?= "NCCL"
 BIN_HOME ?= ""
 SRC_HOME ?= ""
+MPI_HOME ?= ""
 
 BUILDDIR ?= $(abspath build)
 ABSBUILDDIR := $(abspath $(BUILDDIR))
@@ -20,7 +21,7 @@ LICENSE_TARGETS := $(LICENSE_FILES:%=$(BUILDDIR)/%)
 
 CXXFLAGS := --compiler-options -fPIC,-shared,-DNCCL
 LDFLAGS := --linker-options -soname,$(LIBSONAME)
-INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include
+INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include -I$(MPI_HOME)/include
 
 ifeq ($(PLATFORM), RCCL)
 	CXXFLAGS := -fPIC -shared -DRCCL
@@ -37,7 +38,7 @@ ${BUILDDIR}/%.txt: %.txt
 	mkdir -p ${BUILDDIR}
 	cp $< $@
 
-$(LIBDIR)/$(LIBTARGET): src/scheduler.cc src/parser.cc
+$(LIBDIR)/$(LIBTARGET): src/scheduler.cc src/parser.cc src/server.cc src/util.cc 
 	@printf "Compiling & Linking    %-35s > %s\n" $(LIBTARGET) $@ $^
 	mkdir -p $(LIBDIR)
 	$(CXX) $(INC) $(CXXFLAGS) -o $@ $(LDFLAGS) -lcurl $^ $(LNK)
