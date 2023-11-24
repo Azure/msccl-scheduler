@@ -11,9 +11,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-int testNicPair();
-void* mpiNodeExecutor(void* args);
 std::vector<std::string> mpiGetHostNames();
-pid_t popen2(const char *command, int *infp, int *outfp);
 
 #endif

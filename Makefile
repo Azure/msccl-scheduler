@@ -56,7 +56,7 @@ $(MSCCLSCRIPTSDIR):
 	cp -r tools/scripts/* $(MSCCLSCRIPTSDIR)
 
 clean:
-	rm -f $(LIBNAME)
+	rm -f -r $(ABSBUILDDIR)
 
 install : build
 	mkdir -p $(PREFIX)/lib

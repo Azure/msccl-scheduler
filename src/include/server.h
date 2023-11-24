@@ -6,5 +6,4 @@
 #define MSCCL_SERVER_H_
 
 void* detectionServer(void* args);
-std::string testNicPairs(std::pair<int, int> nicPair);
 #endif

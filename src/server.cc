@@ -16,7 +16,6 @@
 #include "include/utils.h"
 
 #define PORT 12345
-//#define BUFFER_SIZE 256
 
 const int num_processes = 8;
 std::string mscclShareDirPath;
@@ -25,38 +24,6 @@ extern int world_rank;
 extern std::vector<std::string> mpiRunningHosts;
 extern std::string fullDirPathStr;
 
-int detectNicFailure()
-{
-    std::vector<std::pair<int, int>> nic_pair;
-    for (int i = 0; i < 8; ++i)
-    {
-        nic_pair.push_back(std::make_pair(i, i));
-    }
-
-    std::vector<std::future<std::string>> pool;
-    std::set<std::string> failedPairsSet;
-
-    for (std::pair<int, int> pair : nic_pair)
-    {
-        pool.push_back(std::async(testNicPairs, pair));
-    }
-
-    for (auto &t : pool)
-    {
-        std::string result = t.get();
-        if (!result.empty())
-        {
-            failedPairsSet.insert(result);
-        }
-    }
-
-    for (const std::string &pair : failedPairsSet)
-    {
-        fprintf(stdout, "%s: %s Failed nic pairs %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pair.c_str());
-    }
-
-    return 0;
-}
 std::string testNicPairs(std::pair<int, int> nicPair)
 {
     char bufferPairKey[50];
@@ -95,148 +62,47 @@ std::string testNicPairs(std::pair<int, int> nicPair)
                     return pair_key;
                 }
                 output += line;
-                std::cout << line;  // Print output dynamically
+                fprintf(stdout, "%s: %s nic detection logs: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, line.c_str()); // Print output dynamically
             }
         }
         if (pclose(stream) != 0) {
             fprintf(stdout, "%s: %s Subprocess returned non-zero exit code from key pair: %s!\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, pair_key.c_str());
         }
     }
-
-    // std::string command = "mpirun";
-    // std::string args = "--mca btl_tcp_if_include eth0 "
-    //                    "--mca pml ob1 "
-    //                    "--mca btl ^openib "
-    //                    "--allow-run-as-root "
-    //                    "--bind-to numa "
-    //                    "--tag-output "
-    //                    "-np " + std::to_string(mpiRunningHosts.size()) + " "
-    //                    "-npernode 1 -H " + hostList + " "
-    //     "-x CUDA_VISIBLE_DEVICES=" + std::to_string(nicPair.first) +
-    //     " echo helloworld! > ";
-    //     // " python /root/msccl/scheduler/msccl-scheduler/tools/scripts/NIC_mpi4py.py " + std::to_string(nicPair.first) + " " +
-    //     // std::to_string(nicPair.second);
-    // std::string whole_command = command + " " + args;
-    // // whole_command = "python /root/msccl/scheduler/msccl-scheduler/tools/scripts/NIC_mpi4py.py " + std::to_string(nicPair.first) + " " + std::to_string(nicPair.second);
-
-    // fprintf(stdout, "%s: %s will execute the mpi command now: %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, whole_command.c_str());
-    
-    // FILE* pipe = popen(whole_command.c_str(), "r");
-    // if (!pipe) {
-    //     return pair_key;
-    // }
-    // char buffer[128];
-    // std::string result = "";
-    // while (!feof(pipe)) {
-    //     if (fgets(buffer, 128, pipe) != NULL)
-    //         result += buffer;
-    // }
-    // pclose(pipe);
-    // std::cout << result;
-
-
-    // int pipe_fd[2];
-    // pid_t pid;
-    // char buffer[BUFFER_SIZE];
- 
-    // if (pipe(pipe_fd) < 0) {
-    //     printf("Failed to create pipe\n");
-    //      return pair_key;
-    // }
- 
-    // pid = fork();
- 
-    // if (pid < 0) {
-    //     printf("Failed to fork\n");
-    //      return pair_key;
-    // }
-    // else if (pid == 0) {
-    //     // child process
-    //     close(pipe_fd[0]); // close the read end of the pipe
-    //     const char *msg = "Hello, parent process!";
-    //     write(pipe_fd[1], msg, strlen(msg)+1);
-    //     exit(0);
-    // }
-    // else {
-    //     // parent process
-    //     close(pipe_fd[1]); // close the write end of the pipe
-    //     int nbytes = 0;
-    //     while ((nbytes = read(pipe_fd[0], buffer, BUFFER_SIZE)) > 0) {
-    //         printf("Received message from child process: %s\n", buffer);
-    //     }
-    //     printf("ok\n");
-    // }
-
-    
-    // int outfp;
-    // pid_t pid = popen2(whole_command.c_str(), NULL, &outfp);
-    // if (pid <= 0)
-    // {
-    //     fprintf(stdout, "%s: %s popen2() failed! %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, pid);
-    //     return pair_key;
-    // }
-
-    // fprintf(stdout, "%s: %s popen2() returned: %d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pid);
-
-
-    // // FILE *outstream = fdopen(outfp, "r");
-    // // int fd = fileno(outstream);
-    // // int flags = fcntl(fd, F_GETFL, 0);
-    // // flags |= O_NONBLOCK;
-    // // fcntl(fd, F_SETFL, flags);
-
-
-    // char buffer[128];
-    // buffer[128] = 0;
-    // int n =0;
-    // std::string result = "";
-    // while((n = read(outfp, buffer, 128)) > 0){
-    //     buffer[n] = 0;
-    //     fprintf(stdout, "%s: %s read n:%d results in buffer: %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, n, buffer);
-    // }
-
-    // fprintf(stdout, "%s: %s testNicPairs Result: %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, result.c_str());
-
-    
-    // while (fgets(buffer, 128, outstream) != NULL){
-    //     fprintf(stdout, "%s: %s testNicPairs result in buffer: %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, buffer);
-    //     result += buffer;}
-
-    // fprintf(stdout, "%s: %s testNicPairs Result: %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, result.c_str());
-
-    // fprintf(stdout, "%s: %s waitpid() started\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
-    // int status;
-    // pid_t result_pid = waitpid(pid, &status, WNOHANG);
-    // fprintf(stdout, "%s: %s waitpid() returned: %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, result_pid);
-    // if (result_pid == 0)
-    // {
-    //     // timeout
-    //     kill(pid, SIGKILL);
-    //     return pair_key;
-    // }
-    // else if (result_pid == -1)
-    // {
-    //     // exception
-    //     fprintf(stdout, "%s: %s waitpid() failed!\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
-    //     return pair_key;
-    // }
-
-    // int return_code = pclose(outstream);
-
-    // if (return_code != 0)
-    // {
-    //     fprintf(stdout, "%s: %s Subprocess returned non-zero exit code: %d \n", MSCCL_SCHEDULER_NAME, LOG_ERROR, return_code);
-    //     return pair_key;
-    // }
-
-    // fprintf(stdout, "%s: %s testNicPairs Result: %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, result.c_str());
-
-    // if (result.find("No device found") != std::string::npos)
-    // {
-    //     fprintf(stdout, "%s: %s No device found detected!\n", MSCCL_SCHEDULER_NAME, LOG_WARN);
-    //     return pair_key;
-    // }
     return std::string();
+}
+
+int detectNicFailure()
+{
+    std::vector<std::pair<int, int>> nic_pair;
+    for (int i = 0; i < 8; ++i)
+    {
+        nic_pair.push_back(std::make_pair(i, i));
+    }
+
+    std::vector<std::future<std::string>> pool;
+    std::set<std::string> failedPairsSet;
+
+    for (std::pair<int, int> pair : nic_pair)
+    {
+        pool.push_back(std::async(testNicPairs, pair));
+    }
+
+    for (auto &t : pool)
+    {
+        std::string result = t.get();
+        if (!result.empty())
+        {
+            failedPairsSet.insert(result);
+        }
+    }
+
+    for (const std::string &pair : failedPairsSet)
+    {
+        fprintf(stdout, "%s: %s Failed nic pairs %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pair.c_str());
+    }
+
+    return 0;
 }
 
 void genNewSchedule(int nics) 
