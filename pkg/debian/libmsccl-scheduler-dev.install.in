@@ -1,2 +1,3 @@
 lib/libmsccl-scheduler.so /usr/lib/${pkg:MultiArch}
 lib/msccl-algorithms /usr/share/msccl-scheduler
+lib/scripts /usr/share/msccl-scheduler

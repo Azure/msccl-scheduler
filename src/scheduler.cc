@@ -13,6 +13,7 @@
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <pthread.h>
+#include <iostream>
 
 #ifdef RCCL
   #include "rccl/rccl.h"
@@ -23,6 +24,7 @@
 #include "include/comm.h"
 #include "include/parser.h"
 #include "include/server.h"
+#include "include/utils.h"
 
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
@@ -36,6 +38,9 @@ static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata
 static pthread_t detectionServerThread;  
 int world_rank;
 int detectionServerExit;
+std::vector<std::string> mpiRunningHosts;
+std::string fullDirPathStr;
+
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
@@ -88,10 +93,11 @@ __hidden ncclResult_t mscclSchedulerInit() {
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
   const char* mscclAlgoShareDir = nullptr;
   const char* mscclPackageInstalledAlgoShareDir = nullptr;
+  const char *fullDirPath = nullptr;
   std::string mscclAlgoDirStr;
   std::string mscclAlgoShareDirStr;
   std::string mscclPackageInstalledAlgoShareDirStr;
-  const char *fullDirPath = nullptr;
+  
   if (mscclAlgoDir == nullptr) {
     // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
     Dl_info dl_info;
@@ -136,6 +142,8 @@ __hidden ncclResult_t mscclSchedulerInit() {
     fullDirPath = mscclAlgoDir;
   }
   fprintf(stdout, "%s: %s Using MSCCL Algo files from %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, fullDirPath);
+  fullDirPathStr = std::string(fullDirPath);
+
   while ((entry = readdir(dp))) {
     if (entry->d_type != DT_LNK && entry->d_type != DT_REG) {
       continue;
@@ -155,11 +163,16 @@ __hidden ncclResult_t mscclSchedulerInit() {
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
 
+  mpiRunningHosts = mpiGetHostNames();
+
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-  if (0 == world_rank && pthread_create(&detectionServerThread, NULL, detectionServer, NULL))
-  {
-    fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
-    return ncclInvalidUsage;
+  if (0 == world_rank)
+  {  
+    if (pthread_create(&detectionServerThread, NULL, detectionServer, NULL))
+    {
+      fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
+      return ncclInvalidUsage;
+    }
   }
   detectionServerExit=false;
   
