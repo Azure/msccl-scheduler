@@ -105,18 +105,20 @@ int detectNicFailure()
     return 0;
 }
 
-void genNewSchedule(int nics) 
+std::string genNewSchedule(int nics) 
 {
+    std::string algoFileName = "new_algo.xml";
+    std::string algoFileFullPath = fullDirPathStr + "/" + algoFileName;
     std::string command = "python " + 
                             mscclShareDirPath + 
                             "scripts/generate_newschedule.py > " +
-                            fullDirPathStr + 
-                            "/new_algo.xml";
+                            algoFileFullPath;
     fprintf(stdout, "%s: %s generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
     std:system(command.c_str());
+    return algoFileFullPath;
 }
 
-void applyNewSchedule() 
+void applyNewSchedule(std::string algoFileFullPath) 
 {
     char localHostName[1024];
     gethostname(localHostName, 1024);
@@ -126,11 +128,9 @@ void applyNewSchedule()
         if (mpiRunningHosts[i] != localHostName)
         {       
             std::string command = "scp " +
-                                    fullDirPathStr + 
-                                    "/new_algo.xml " +
+                                    algoFileFullPath +
                                     mpiRunningHosts[i] + ":" +
-                                    fullDirPathStr + 
-                                    "/new_algo.xml"; 
+                                    algoFileFullPath; 
             fprintf(stdout, "%s: %s applyNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
             std:system(command.c_str());    
         }
@@ -209,10 +209,10 @@ void *detectionServer(void *args)
             fprintf(stdout, "%s: %s Detection Server Received: %s and will start the detect NIC failure routine now.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, msg.c_str());
             // detect NIC failure routine start.
             auto failed_nic = detectNicFailure();
-            std::string response = std::to_string(failed_nic);
+            std::string algoFileFullPath = genNewSchedule(failed_nic);
+            applyNewSchedule(algoFileFullPath);
+            std::string response = algoFileFullPath;
             send(client_socket, response.c_str(), response.size(), 0);
-            genNewSchedule(failed_nic);
-            applyNewSchedule();
         }
 
         // Close the client socket

@@ -5,8 +5,6 @@
 #ifndef MSCCL_COMMON_H_
 #define MSCCL_COMMON_H_
 
-#include <mpi.h>
-
 #define __hidden __attribute__ ((visibility("hidden")))
 #define MSCCL_SCHEDULER_NAME "github.com/Azure/msccl-scheduler"
 

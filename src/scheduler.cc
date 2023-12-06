@@ -20,8 +20,10 @@
 #else 
   #include "nccl.h"
 #endif
+#include "comm.h"
 
 #include "include/comm.h"
+#include "include/client.h"
 #include "include/parser.h"
 #include "include/server.h"
 #include "include/utils.h"
@@ -35,10 +37,11 @@ static const char* mscclUnitTestAlgoShareDirPath = "../share/msccl-scheduler/msc
 static const char* mscclPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-algorithms";
 static const char* mscclUnitTestPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
+
 static pthread_t detectionServerThread;  
 int world_rank;
 int detectionServerExit;
-std::vector<std::string> mpiRunningHosts;
+std::vector<std::string> runningHostNames;
 std::string fullDirPathStr;
 
 
@@ -88,7 +91,7 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
 }
 
 // Load meta information of algorithms
-__hidden ncclResult_t mscclSchedulerInit() {
+__hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
   const char* mscclAlgoShareDir = nullptr;
@@ -97,6 +100,7 @@ __hidden ncclResult_t mscclSchedulerInit() {
   std::string mscclAlgoDirStr;
   std::string mscclAlgoShareDirStr;
   std::string mscclPackageInstalledAlgoShareDirStr;
+  world_rank = comm->rank;
   
   if (mscclAlgoDir == nullptr) {
     // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
@@ -163,9 +167,11 @@ __hidden ncclResult_t mscclSchedulerInit() {
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
 
-  mpiRunningHosts = mpiGetHostNames();
+  if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
+  {
+    return ncclInvalidUsage;
+  }
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
   if (0 == world_rank)
   {  
     if (pthread_create(&detectionServerThread, NULL, detectionServer, NULL))
@@ -179,27 +185,16 @@ __hidden ncclResult_t mscclSchedulerInit() {
   return ret;
 }
 
-static __inline__ int ncclTypeSize(ncclDataType_t type) {
-  switch (type) {
-    case ncclInt8:
-    case ncclUint8:
-      return 1;
-    case ncclFloat16:
-#if defined(RCCL_BFLOAT16)
-    case ncclBfloat16:
-#endif
-      return 2;
-    case ncclInt32:
-    case ncclUint32:
-    case ncclFloat32:
-      return 4;
-    case ncclInt64:
-    case ncclUint64:
-    case ncclFloat64:
-      return 8;
-    default:
-      return -1;
-  }
+__hidden ncclResult_t mscclScheduleAlternative(std::string xmlPath)
+{
+  ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
+
+  // append a new algorithm into the algorithmmetas by opening a new xml file.
+  mscclAlgoMetas.emplace_back();
+  tmpRet = mscclGetAlgoMetaFromXmlFile(xmlPath.c_str(), &(mscclAlgoMetas.back()));
+  rankToAlgoHandles.resize(mscclAlgoMetas.size());
+
+  return ncclSuccess;
 }
 
 // Select algorithm, load if necessary
@@ -207,6 +202,17 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
   ncclResult_t ret = ncclSuccess;
 
   param->scheduled = false;
+
+  if (param->repair)
+  {
+    std::vector<std::string> xmlPaths;
+    if (0 == sendDetectInfo(xmlPaths))
+    {
+      for (const auto &xmlPath : xmlPaths) {
+        mscclScheduleAlternative(xmlPath);
+      }
+    }
+  }
 
   // Whether the algorithm is in-place
   bool isInPlace = false;

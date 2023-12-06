@@ -7,7 +7,6 @@ PREFIX ?= /usr/local
 PLATFORM ?= "NCCL"
 BIN_HOME ?= ""
 SRC_HOME ?= ""
-MPI_HOME ?= ""
 
 BUILDDIR ?= $(abspath build)
 ABSBUILDDIR := $(abspath $(BUILDDIR))
@@ -22,7 +21,7 @@ LICENSE_TARGETS := $(LICENSE_FILES:%=$(BUILDDIR)/%)
 
 CXXFLAGS := --compiler-options -fPIC,-shared,-DNCCL
 LDFLAGS := --linker-options -soname,$(LIBSONAME)
-INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include -I$(MPI_HOME)/include
+INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include
 
 ifeq ($(PLATFORM), RCCL)
 	CXXFLAGS := -fPIC -shared -DRCCL
