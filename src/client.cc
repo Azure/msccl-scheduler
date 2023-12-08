@@ -8,7 +8,10 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sstream>
+#include <unistd.h>
 #include <vector>
+
+#include "include/comm.h"
 
 int sendDetectInfo(std::vector<std::string> &xmlPaths)
 {
@@ -25,13 +28,14 @@ int sendDetectInfo(std::vector<std::string> &xmlPaths)
     // Set up server details
     sockaddr_in server_address;
     server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = inet_addr(HOST);
     server_address.sin_port = htons(PORT);
     if (inet_addr(HOST) == -1) {
         std::cerr << "Invalid IP address: " << HOST << std::endl;
         return 1;
     }
-    server_address.sin_addr.s_addr = inet_addr(HOST);
-
+    
+    fprintf(stdout, "%s: %s start to connect to server\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     // Connect to the server
     if (connect(client_socket, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
         std::cerr << "Failed to connect to server: " << std::strerror(errno) << std::endl;
@@ -62,4 +66,5 @@ int sendDetectInfo(std::vector<std::string> &xmlPaths)
     
     // Close the socket
     close(client_socket);
+    return 0;
 }

@@ -10,11 +10,10 @@
 #include <unordered_set>
 
 #include "comm.h"
+#include "bootstrap.h"
 
 #include "include/comm.h"
 #include "include/utils.h"
-
-typedef ncclResult_t (*bootstrapAllGather_t)(void* commState, void* allData, int size);
 
 #ifdef RCCL
   static const char* mscclExecutorDefaultPath = "librccl.so";
@@ -25,13 +24,13 @@ typedef ncclResult_t (*bootstrapAllGather_t)(void* commState, void* allData, int
 ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &hostNames){
     void* mscclExecutorLib = dlopen(mscclExecutorDefaultPath, RTLD_NOW | RTLD_LOCAL);
     if (mscclExecutorLib == nullptr) {
-        fprintf(stdout, "%s: %s No ExecutorLib found, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
+        fprintf(stdout, "%s: %s No ExecutorLib found\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
         return ncclInvalidUsage;
     }   
   
-    bootstrapAllGather_t allGatherPtr = (bootstrapAllGather_t)dlsym(mscclExecutorLib, "bootstrapAllGather");
-    if (allGatherPtr == nullptr) {
-        fprintf(stdout, "%s: %s Failed to find mscclScheduler symbol, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
+    ncclBootstrapInterface *ncclBootstrapPtr = (ncclBootstrapInterface *)dlsym(mscclExecutorLib, "ncclBootstrap");
+    if (ncclBootstrapPtr == nullptr) {
+        fprintf(stdout, "%s: %s Failed to find msccl Executor symbol ncclBootstrap\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
         return ncclInvalidUsage;
     }
 
@@ -40,19 +39,25 @@ ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &host
 
     char** fullHostNames = NULL;
     fullHostNames = new char*[comm->nRanks];
-    fullHostNames[comm->rank] = new char[strlen(hostname) + 1];
+    for (int i = 0; i < comm->nRanks; ++i) {
+        fullHostNames[i] = new char[1024];
+        memset(fullHostNames[i], 0, 1024);
+    }
     strcpy(fullHostNames[comm->rank], hostname);
-    allGatherPtr(comm->bootstrap, fullHostNames, comm->nRanks * sizeof(char*));
+    ncclBootstrapPtr->allgather(comm->bootstrap, fullHostNames, comm->nRanks * sizeof(char*));
     
     std::unordered_set<std::string> s;
     for (int i = 0; i < comm->nRanks; ++i) {
-        s.insert(std::string(fullHostNames[i]));
+        if ("" != fullHostNames[i]) {
+            s.insert(std::string(fullHostNames[i]));
+        }
     }
+    fprintf(stdout, "%s: %s after merge, rank:%d, ranks:%d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, comm->rank, comm->nRanks);
     hostNames.assign(s.begin(), s.end());
     for (int i = 0; i < comm->nRanks; ++i) {
+        fprintf(stdout, "%s: %s fullHostNames:%d, %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, i, fullHostNames[i]);
         delete[] fullHostNames[i];
     }
     delete[] fullHostNames;
-
     return ncclSuccess;
 }

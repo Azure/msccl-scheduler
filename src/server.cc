@@ -21,7 +21,7 @@ const int num_processes = 8;
 std::string mscclShareDirPath;
 extern int detectionServerExit;
 extern int world_rank;
-extern std::vector<std::string> mpiRunningHosts;
+extern std::vector<std::string> runningHostNames;
 extern std::string fullDirPathStr;
 
 std::string testNicPairs(std::pair<int, int> nicPair)
@@ -31,11 +31,11 @@ std::string testNicPairs(std::pair<int, int> nicPair)
     std::string pair_key = bufferPairKey;
 
     std::string hostList;
-    for (size_t i = 0; i < mpiRunningHosts.size(); ++i)
+    for (size_t i = 0; i < runningHostNames.size(); ++i)
     {
         if (i != 0)
             hostList += ",";
-        hostList += mpiRunningHosts[i] + ":8";
+        hostList += runningHostNames[i] + ":8";
     }
 
     std::string command = "python " + 
@@ -43,7 +43,7 @@ std::string testNicPairs(std::pair<int, int> nicPair)
                             "scripts/test_nicpair.py " + 
                             std::to_string(nicPair.first) + " " + 
                             std::to_string(nicPair.second) +  " " + 
-                            std::to_string(mpiRunningHosts.size()) + " " + 
+                            std::to_string(runningHostNames.size()) + " " + 
                             hostList;
     
     std::string output, line;
@@ -123,13 +123,13 @@ void applyNewSchedule(std::string algoFileFullPath)
     char localHostName[1024];
     gethostname(localHostName, 1024);
 
-    for (size_t i = 0; i < mpiRunningHosts.size(); ++i)
+    for (size_t i = 0; i < runningHostNames.size(); ++i)
     {
-        if (mpiRunningHosts[i] != localHostName)
+        if (runningHostNames[i] != localHostName)
         {       
             std::string command = "scp " +
                                     algoFileFullPath +
-                                    mpiRunningHosts[i] + ":" +
+                                    runningHostNames[i] + ":" +
                                     algoFileFullPath; 
             fprintf(stdout, "%s: %s applyNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
             std:system(command.c_str());    

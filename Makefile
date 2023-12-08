@@ -38,7 +38,7 @@ ${BUILDDIR}/%.txt: %.txt
 	mkdir -p ${BUILDDIR}
 	cp $< $@
 
-$(LIBDIR)/$(LIBTARGET): src/scheduler.cc src/parser.cc src/server.cc src/utils.cc 
+$(LIBDIR)/$(LIBTARGET): src/scheduler.cc src/parser.cc src/client.cc src/server.cc src/utils.cc
 	@printf "Compiling & Linking    %-35s > %s\n" $(LIBTARGET) $@ $^
 	mkdir -p $(LIBDIR)
 	$(CXX) $(INC) $(CXXFLAGS) -o $@ $(LDFLAGS) -lcurl $^ $(LNK)

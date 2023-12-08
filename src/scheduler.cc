@@ -167,10 +167,15 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
 
-  if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
-  {
-    return ncclInvalidUsage;
-  }
+  // if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
+  // {
+  //   return ncclInvalidUsage;
+  // }
+
+  // for (std::string str : runningHostNames)
+  // {
+  //   fprintf(stdout, "%s: %s runninghosts %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, str.c_str());
+  // }
 
   if (0 == world_rank)
   {  
