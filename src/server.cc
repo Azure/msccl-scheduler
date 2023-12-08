@@ -180,7 +180,7 @@ void *detectionServer(void *args)
 
     FD_ZERO(&set);
     FD_SET(server_socket, &set);
-    timeout.tv_sec = 10; // 10 second timeout
+    timeout.tv_sec = 30; // 30 second timeout
     timeout.tv_usec = 0;
 
     while (!detectionServerExit)

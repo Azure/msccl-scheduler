@@ -167,15 +167,12 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
 
-  // if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
-  // {
-  //   return ncclInvalidUsage;
-  // }
+  fprintf(stdout, "%s: %s Start to get running HostNames, rank:%d, nrank:%d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, comm->rank, comm->nRanks);
 
-  // for (std::string str : runningHostNames)
-  // {
-  //   fprintf(stdout, "%s: %s runninghosts %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, str.c_str());
-  // }
+  if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
+  {
+    return ncclInvalidUsage;
+  }
 
   if (0 == world_rank)
   {  
@@ -211,7 +208,12 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
   if (param->repair)
   {
     std::vector<std::string> xmlPaths;
-    if (0 == sendDetectInfo(xmlPaths))
+    int nRet = 0;
+    if (0 == param->rank)
+    {
+      nRet = sendDetectInfo(xmlPaths);
+    }
+    if (0 == nRet)
     {
       for (const auto &xmlPath : xmlPaths) {
         mscclScheduleAlternative(xmlPath);

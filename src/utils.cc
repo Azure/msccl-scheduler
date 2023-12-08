@@ -37,27 +37,34 @@ ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &host
     char hostname[1024];
     gethostname(hostname, 1024);
 
-    char** fullHostNames = NULL;
-    fullHostNames = new char*[comm->nRanks];
-    for (int i = 0; i < comm->nRanks; ++i) {
-        fullHostNames[i] = new char[1024];
-        memset(fullHostNames[i], 0, 1024);
-    }
-    strcpy(fullHostNames[comm->rank], hostname);
-    ncclBootstrapPtr->allgather(comm->bootstrap, fullHostNames, comm->nRanks * sizeof(char*));
-    
-    std::unordered_set<std::string> s;
-    for (int i = 0; i < comm->nRanks; ++i) {
-        if ("" != fullHostNames[i]) {
-            s.insert(std::string(fullHostNames[i]));
+    if (0 == comm->rank)
+    {
+        char** fullHostNames = NULL;
+        fullHostNames = new char*[comm->nRanks];
+        for (int i = 0; i < comm->nRanks; ++i) {
+            fullHostNames[i] = new char[1024];
+            memset(fullHostNames[i], 0, 1024);
         }
+        strcpy(fullHostNames[comm->rank], hostname);
+        for (int i=1;i<comm->nRanks;i++){
+            ncclBootstrapPtr->receive(comm->bootstrap, i, 0, fullHostNames[i], 1024);
+        }
+        std::unordered_set<std::string> s;
+        for (int i = 0; i < comm->nRanks; ++i) {
+            if ('\0' != fullHostNames[i][0]) {
+                s.insert(std::string(fullHostNames[i]));
+            }
+        }
+        
+        hostNames.assign(s.begin(), s.end());
+        for (int i = 0; i < comm->nRanks; ++i) {
+            fprintf(stdout, "%s: %s on rank %d hostname: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, i, fullHostNames[i]);
+            delete[] fullHostNames[i];
+        }
+        delete[] fullHostNames;
     }
-    fprintf(stdout, "%s: %s after merge, rank:%d, ranks:%d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, comm->rank, comm->nRanks);
-    hostNames.assign(s.begin(), s.end());
-    for (int i = 0; i < comm->nRanks; ++i) {
-        fprintf(stdout, "%s: %s fullHostNames:%d, %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, i, fullHostNames[i]);
-        delete[] fullHostNames[i];
+    else{
+        ncclBootstrapPtr->send(comm->bootstrap, 0, 0, hostname, 1024);
     }
-    delete[] fullHostNames;
     return ncclSuccess;
 }
