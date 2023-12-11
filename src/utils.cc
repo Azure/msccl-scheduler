@@ -15,39 +15,23 @@
 #include "include/comm.h"
 #include "include/utils.h"
 
-#ifdef RCCL
-  static const char* mscclExecutorDefaultPath = "librccl.so";
-#else 
-  static const char* mscclExecutorDefaultPath = "libnccl.so";
-#endif
+extern ncclBootstrapInterface *ncclBootstrapPtr;
 
 ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &hostNames){
-    void* mscclExecutorLib = dlopen(mscclExecutorDefaultPath, RTLD_NOW | RTLD_LOCAL);
-    if (mscclExecutorLib == nullptr) {
-        fprintf(stdout, "%s: %s No ExecutorLib found\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
-        return ncclInvalidUsage;
-    }   
-  
-    ncclBootstrapInterface *ncclBootstrapPtr = (ncclBootstrapInterface *)dlsym(mscclExecutorLib, "ncclBootstrap");
-    if (ncclBootstrapPtr == nullptr) {
-        fprintf(stdout, "%s: %s Failed to find msccl Executor symbol ncclBootstrap\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
-        return ncclInvalidUsage;
-    }
-
-    char hostname[1024];
-    gethostname(hostname, 1024);
+    char hostname[BUFFER_SIZE];
+    gethostname(hostname, BUFFER_SIZE);
 
     if (0 == comm->rank)
     {
         char** fullHostNames = NULL;
         fullHostNames = new char*[comm->nRanks];
         for (int i = 0; i < comm->nRanks; ++i) {
-            fullHostNames[i] = new char[1024];
-            memset(fullHostNames[i], 0, 1024);
+            fullHostNames[i] = new char[BUFFER_SIZE];
+            memset(fullHostNames[i], 0, BUFFER_SIZE);
         }
         strcpy(fullHostNames[comm->rank], hostname);
         for (int i=1;i<comm->nRanks;i++){
-            ncclBootstrapPtr->receive(comm->bootstrap, i, 0, fullHostNames[i], 1024);
+            ncclBootstrapPtr->receive(comm->bootstrap, i, TAG_HOSTINFO, fullHostNames[i], BUFFER_SIZE);
         }
         std::unordered_set<std::string> s;
         for (int i = 0; i < comm->nRanks; ++i) {
@@ -58,13 +42,13 @@ ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &host
         
         hostNames.assign(s.begin(), s.end());
         for (int i = 0; i < comm->nRanks; ++i) {
-            fprintf(stdout, "%s: %s on rank %d hostname: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, i, fullHostNames[i]);
+            fprintf(stdout, "%s: %s on rank %d hostname: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, i, fullHostNames[i]);
             delete[] fullHostNames[i];
         }
         delete[] fullHostNames;
     }
     else{
-        ncclBootstrapPtr->send(comm->bootstrap, 0, 0, hostname, 1024);
+        ncclBootstrapPtr->send(comm->bootstrap, 0, TAG_HOSTINFO, hostname, BUFFER_SIZE);
     }
     return ncclSuccess;
 }

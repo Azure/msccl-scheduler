@@ -15,8 +15,6 @@
 #include "include/server.h"
 #include "include/utils.h"
 
-#define PORT 12345
-
 const int num_processes = 8;
 std::string mscclShareDirPath;
 extern int detectionServerExit;
@@ -111,15 +109,17 @@ std::string genNewSchedule(int nics)
     std::string algoFileFullPath = fullDirPathStr + "/" + algoFileName;
     std::string command = "python " + 
                             mscclShareDirPath + 
-                            "scripts/generate_newschedule.py > " +
+                            "scripts/generate_newschedule.py " +
                             algoFileFullPath;
     fprintf(stdout, "%s: %s generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
     std:system(command.c_str());
+    fprintf(stdout, "%s: %s finished execution generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
     return algoFileFullPath;
 }
 
 void applyNewSchedule(std::string algoFileFullPath) 
 {
+    fprintf(stdout, "%s: %s applyNewSchedule Enterred\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     char localHostName[1024];
     gethostname(localHostName, 1024);
 
@@ -149,7 +149,7 @@ void *detectionServer(void *args)
     socklen_t addr_len = sizeof(client_addr);
     fd_set set;
     struct timeval timeout;
-    char buffer[1024] = {0};
+    char buffer[BUFFER_SIZE] = {0};
 
     // Create a socket object
     if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0)
@@ -160,7 +160,7 @@ void *detectionServer(void *args)
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
+    server_addr.sin_port = htons(SERVER_PORT);
 
     // Bind the socket to the host and port
     if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
@@ -201,7 +201,7 @@ void *detectionServer(void *args)
         fprintf(stdout, "%s: %s Detection Server Connected to: %s:%d.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
         // Receive data from the client
-        read(client_socket, buffer, 1024);
+        read(client_socket, buffer, BUFFER_SIZE);
         std::string msg(buffer);
 
         if (msg == "detect_nic")

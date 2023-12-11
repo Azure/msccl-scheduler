@@ -5,5 +5,5 @@
 #ifndef MSCCL_CLIENT_H_
 #define MSCCL_CLIENT_H_
 
-int sendDetectInfo(std::vector<std::string> &xmlPaths);
+int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths);
 #endif

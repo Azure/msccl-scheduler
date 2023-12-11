@@ -13,49 +13,45 @@
 
 #include "include/comm.h"
 
-int sendDetectInfo(std::vector<std::string> &xmlPaths)
+int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths)
 {
-    const char* HOST = "127.0.0.1";
-    int PORT = 12345;
-
     // Create a socket
     int client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket == -1) {
-        std::cerr << "Failed to create socket: " << std::strerror(errno) << std::endl;
+        fprintf(stdout, "%s: %s Failed to create socket: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
         return 1;
     }
 
     // Set up server details
     sockaddr_in server_address;
     server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = inet_addr(HOST);
-    server_address.sin_port = htons(PORT);
-    if (inet_addr(HOST) == -1) {
-        std::cerr << "Invalid IP address: " << HOST << std::endl;
+    server_address.sin_addr.s_addr = inet_addr(HOST_ADDR);
+    server_address.sin_port = htons(SERVER_PORT);
+    if (inet_addr(HOST_ADDR) == -1) {
+        fprintf(stdout, "%s: %s Invalid IP address: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, HOST_ADDR);
         return 1;
     }
     
     fprintf(stdout, "%s: %s start to connect to server\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     // Connect to the server
     if (connect(client_socket, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
-        std::cerr << "Failed to connect to server: " << std::strerror(errno) << std::endl;
+        fprintf(stdout, "%s: %s Failed to connect to server: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
         return 1;
     }
 
     // Send data to the server
     std::string message = "detect_nic";
     if (send(client_socket, message.c_str(), message.size(), 0) < 0) {
-        std::cerr << "Failed to send message: " << std::strerror(errno) << std::endl;
+        fprintf(stdout, "%s: %s Failed to send message: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
         return 1;
     }
 
     // Receive the response from the server
-    char buffer[1024] = {0};
+    char buffer[BUFFER_SIZE] = {0};
     if (recv(client_socket, buffer, sizeof(buffer) - 1, 0) < 0) {
-        std::cerr << "Failed to receive response: " << std::strerror(errno) << std::endl;
+        fprintf(stdout, "%s: %s Failed to receive response: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
         return 1;
     }
-    std::cout << buffer << std::endl;
 
     std::istringstream iss(buffer);
     std::string temp;

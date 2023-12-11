@@ -21,6 +21,7 @@
   #include "nccl.h"
 #endif
 #include "comm.h"
+#include "bootstrap.h"
 
 #include "include/comm.h"
 #include "include/client.h"
@@ -28,6 +29,11 @@
 #include "include/server.h"
 #include "include/utils.h"
 
+#ifdef RCCL
+  static const char* mscclExecutorDefaultPath = "librccl.so";
+#else 
+  static const char* mscclExecutorDefaultPath = "libnccl.so";
+#endif
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
 extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
@@ -43,7 +49,7 @@ int world_rank;
 int detectionServerExit;
 std::vector<std::string> runningHostNames;
 std::string fullDirPathStr;
-
+ncclBootstrapInterface *ncclBootstrapPtr = nullptr;
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
@@ -167,6 +173,18 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
 
+  void* mscclExecutorLib = dlopen(mscclExecutorDefaultPath, RTLD_NOW | RTLD_LOCAL);
+  if (mscclExecutorLib == nullptr) {
+    fprintf(stdout, "%s: %s No ExecutorLib found\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
+      return ncclInvalidUsage;
+  }   
+  
+  ncclBootstrapPtr = (ncclBootstrapInterface *)dlsym(mscclExecutorLib, "ncclBootstrap");
+  if (ncclBootstrapPtr == nullptr) {
+    fprintf(stdout, "%s: %s Failed to find msccl Executor symbol ncclBootstrap\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
+      return ncclInvalidUsage;
+  }
+
   fprintf(stdout, "%s: %s Start to get running HostNames, rank:%d, nrank:%d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, comm->rank, comm->nRanks);
 
   if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
@@ -192,6 +210,7 @@ __hidden ncclResult_t mscclScheduleAlternative(std::string xmlPath)
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
 
   // append a new algorithm into the algorithmmetas by opening a new xml file.
+  fprintf(stdout, "%s: %s ppend a new algorithm into the algorithmmetas, xml: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, xmlPath.c_str());
   mscclAlgoMetas.emplace_back();
   tmpRet = mscclGetAlgoMetaFromXmlFile(xmlPath.c_str(), &(mscclAlgoMetas.back()));
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
@@ -209,16 +228,45 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
   {
     std::vector<std::string> xmlPaths;
     int nRet = 0;
+    char* arr = new char[BUFFER_SIZE];
+
     if (0 == param->rank)
     {
-      nRet = sendDetectInfo(xmlPaths);
+      nRet = getOptimizedAlgoFiles(xmlPaths);
+      fprintf(stdout, "%s: %s start to prepare send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
+      if (0 == nRet)
+      {
+        size_t pos = 0;
+        for (const auto& str : xmlPaths) {
+          if (pos < BUFFER_SIZE)
+          {
+            std::copy(str.begin(), str.end(), arr + pos);
+            pos += str.size();
+            arr[pos] = '\0'; 
+            ++pos;
+          }
+        }
+      }
+      fprintf(stdout, "%s: %s start to send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
+      for (int i =1;i<param->nRanks;i++){
+          ncclBootstrapPtr->send(param->comm->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
+      }
+      fprintf(stdout, "%s: %s finish send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     }
-    if (0 == nRet)
-    {
-      for (const auto &xmlPath : xmlPaths) {
-        mscclScheduleAlternative(xmlPath);
+    else{
+      fprintf(stdout, "%s: %s start to receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
+      ncclBootstrapPtr->receive(param->comm->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
+      fprintf(stdout, "%s: %s finish receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
+      char* token = strtok(arr, "\0");
+      while (token != nullptr) {
+        xmlPaths.push_back(token);
+        token = strtok(nullptr, "\0");
       }
     }
+    for (const auto &xmlPath : xmlPaths) {
+        mscclScheduleAlternative(xmlPath);
+    }
+    delete[] arr;
   }
 
   // Whether the algorithm is in-place

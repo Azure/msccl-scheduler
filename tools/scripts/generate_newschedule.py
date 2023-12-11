@@ -1,3 +1,4 @@
+import argparse
 import networkx as nx
 import pipeline_allgather
 import to_xml
@@ -36,6 +37,10 @@ nnodes = 2
 k_value = 1
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='default')
+    parser.add_argument('fileName', type=str, help='the output file name')
+    args = parser.parse_args()
+    
     topo, compute_nodes = topology(nnodes)
     (U, k), (Ts, Cs) = pipeline_allgather.optimal_pipeline_spanning_trees(
         topo, compute_nodes=compute_nodes, fixed_K=k_value)
@@ -70,4 +75,5 @@ if __name__ == "__main__":
     s = minidom.parseString(s)
     s = s.toprettyxml(indent="  ")
     s = '\n'.join(s.split('\n')[1:])
-    print(s)
+    with open(args.fileName, 'w') as f:
+        f.write(s)
