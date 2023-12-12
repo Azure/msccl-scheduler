@@ -103,14 +103,15 @@ int detectNicFailure()
     return 0;
 }
 
-std::string genNewSchedule(int nics) 
+std::string genNewSchedule(int nics, int nNodes) 
 {
     std::string algoFileName = "new_algo.xml";
     std::string algoFileFullPath = fullDirPathStr + "/" + algoFileName;
     std::string command = "python " + 
                             mscclShareDirPath + 
                             "scripts/generate_newschedule.py " +
-                            algoFileFullPath;
+                            algoFileFullPath + " " +
+                            std::to_string(nNodes) + " 0";
     fprintf(stdout, "%s: %s generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
     std:system(command.c_str());
     fprintf(stdout, "%s: %s finished execution generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
@@ -139,6 +140,7 @@ void applyNewSchedule(std::string algoFileFullPath)
 
 void *detectionServer(void *args)
 {
+    int nNodes = *(int*)args;
     fprintf(stdout, "%s: %s Starting Server thread.\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
 
     mscclShareDirPath = fullDirPathStr.substr(0, fullDirPathStr.rfind("msccl-algorithms"));
@@ -209,7 +211,7 @@ void *detectionServer(void *args)
             fprintf(stdout, "%s: %s Detection Server Received: %s and will start the detect NIC failure routine now.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, msg.c_str());
             // detect NIC failure routine start.
             auto failed_nic = detectNicFailure();
-            std::string algoFileFullPath = genNewSchedule(failed_nic);
+            std::string algoFileFullPath = genNewSchedule(failed_nic, nNodes);
             applyNewSchedule(algoFileFullPath);
             std::string response = algoFileFullPath;
             send(client_socket, response.c_str(), response.size(), 0);

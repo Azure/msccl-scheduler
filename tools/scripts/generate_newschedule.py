@@ -33,15 +33,16 @@ def topology(nnode: int):
     return G, compute_nodes
 
 
-nnodes = 2
 k_value = 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='default')
     parser.add_argument('fileName', type=str, help='the output file name')
+    parser.add_argument('nodes', type=int, help='number of nodes in the cluster', default='2')
+    parser.add_argument('inplace', type=int, help='whether use inplace during data transfer', default='0')
     args = parser.parse_args()
     
-    topo, compute_nodes = topology(nnodes)
+    topo, compute_nodes = topology(args.nodes)
     (U, k), (Ts, Cs) = pipeline_allgather.optimal_pipeline_spanning_trees(
         topo, compute_nodes=compute_nodes, fixed_K=k_value)
     # print(f"U={U}, k={k}")
@@ -64,13 +65,14 @@ if __name__ == "__main__":
     nCs = {(gpu_index(u), i): c for (u, i), c in Cs.items()}
     nodes = sorted(map(gpu_index, compute_nodes))
 
-    nics = {a: [] for a in range(nnodes)}
+    nics = {a: [] for a in range(args.nodes)}
     for a, tp, b in topo.nodes():
         if tp == 'mlx5':
             nics[a].append(b)
     nics_str = "\n".join(f"node {a} mlx5 nics {' '.join(map(str, sorted(bs)))}" for a, bs in sorted(nics.items()))
+    print(nics_str) 
 
-    algo = to_xml.construct_algo_allreduce(nTs, nCs, k, nodes, 1, nics_str=nics_str)
+    algo = to_xml.construct_algo_allreduce(nTs, nCs, k, nodes, 1, inplace=args.inplace, nics_str=nics_str)
     s = ET.tostring(algo, 'utf-8')
     s = minidom.parseString(s)
     s = s.toprettyxml(indent="  ")

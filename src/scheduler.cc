@@ -194,7 +194,7 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
 
   if (0 == world_rank)
   {  
-    if (pthread_create(&detectionServerThread, NULL, detectionServer, NULL))
+    if (pthread_create(&detectionServerThread, NULL, detectionServer, &comm->nNodes))
     {
       fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
       return ncclInvalidUsage;
@@ -292,10 +292,12 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
     bool msgSizeIsValid =
       param->count > 0 && (param->count % m.nChunksPerLoop) == 0 &&
       nBytes >= m.minBytes && (m.maxBytes == 0 || nBytes <= m.maxBytes);
+    fprintf(stdout, "%s: %s select algorithm isInPlace %d, AlgoMeta Size: %ld, msgSizeIsValid: %d, m.nRanks == param->nRanks: %d, m.func == param->func:%d, isInPlace ? m.inPlace : m.outOfPlace:%d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, isInPlace, mscclAlgoMetas.size(), msgSizeIsValid, m.nRanks == param->nRanks, m.func == param->func, isInPlace ? m.inPlace : m.outOfPlace);  
     if (msgSizeIsValid &&
         m.nRanks == param->nRanks &&
         m.func == param->func &&
         (isInPlace ? m.inPlace : m.outOfPlace)) {
+      fprintf(stdout, "%s: %s not loaded for current rank, load it\n", MSCCL_SCHEDULER_NAME, LOG_INFO);  
       // If not loaded for current rank, load it
       if (rankToAlgoHandles[i].find(param->rank) == rankToAlgoHandles[i].end()) {
         mscclAlgoHandle_t algoHandle;
