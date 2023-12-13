@@ -15,6 +15,7 @@
 #else
   #include "nccl.h"
 #endif
+
 #include "msccl/msccl_scheduler.h"
 
 // A few constraints to make the implementation easy

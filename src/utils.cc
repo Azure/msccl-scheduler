@@ -8,47 +8,44 @@
 #include <string>
 #include <unistd.h>
 #include <unordered_set>
+#include <vector>
 
-#include "comm.h"
-#include "bootstrap.h"
+#include "common.h"
+#include "utils.h"
+#include "msccl/msccl_scheduler.h"
 
-#include "include/comm.h"
-#include "include/utils.h"
-
-extern ncclBootstrapInterface *ncclBootstrapPtr;
-
-ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &hostNames){
+ncclResult_t GetRunningHostNames(mscclSchedulerInitParam *initParam, std::vector<std::string> &hostNames){
     char hostname[BUFFER_SIZE];
     gethostname(hostname, BUFFER_SIZE);
 
-    if (0 == comm->rank)
+    if (0 == initParam->rank)
     {
         char** fullHostNames = NULL;
-        fullHostNames = new char*[comm->nRanks];
-        for (int i = 0; i < comm->nRanks; ++i) {
+        fullHostNames = new char*[initParam->nRanks];
+        for (int i = 0; i < initParam->nRanks; ++i) {
             fullHostNames[i] = new char[BUFFER_SIZE];
             memset(fullHostNames[i], 0, BUFFER_SIZE);
         }
-        strcpy(fullHostNames[comm->rank], hostname);
-        for (int i=1;i<comm->nRanks;i++){
-            ncclBootstrapPtr->receive(comm->bootstrap, i, TAG_HOSTINFO, fullHostNames[i], BUFFER_SIZE);
+        strcpy(fullHostNames[initParam->rank], hostname);
+        for (int i=1;i<initParam->nRanks;i++){
+            initParam->receive(initParam->bootstrap, i, TAG_HOSTINFO, fullHostNames[i], BUFFER_SIZE);
         }
         std::unordered_set<std::string> s;
-        for (int i = 0; i < comm->nRanks; ++i) {
+        for (int i = 0; i < initParam->nRanks; ++i) {
             if ('\0' != fullHostNames[i][0]) {
                 s.insert(std::string(fullHostNames[i]));
             }
         }
         
         hostNames.assign(s.begin(), s.end());
-        for (int i = 0; i < comm->nRanks; ++i) {
+        for (int i = 0; i < initParam->nRanks; ++i) {
             fprintf(stdout, "%s: %s on rank %d hostname: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, i, fullHostNames[i]);
             delete[] fullHostNames[i];
         }
         delete[] fullHostNames;
     }
     else{
-        ncclBootstrapPtr->send(comm->bootstrap, 0, TAG_HOSTINFO, hostname, BUFFER_SIZE);
+        initParam->send(initParam->bootstrap, 0, TAG_HOSTINFO, hostname, BUFFER_SIZE);
     }
     return ncclSuccess;
 }

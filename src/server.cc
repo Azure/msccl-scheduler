@@ -11,9 +11,10 @@
 #include <set>
 #include <thread>
 #include <unistd.h>
-#include "include/comm.h"
-#include "include/server.h"
-#include "include/utils.h"
+#include <vector>
+#include "common.h"
+#include "server.h"
+#include "utils.h"
 
 const int num_processes = 8;
 std::string mscclShareDirPath;

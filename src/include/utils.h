@@ -5,11 +5,15 @@
 #ifndef MSCCL_UTILS_H_
 #define MSCCL_UTILS_H_
 
-#include <nccl.h>
+#ifdef RCCL
+  #include "rccl/rccl.h"
+#else 
+  #include "nccl.h"
+#endif
 #include <vector>
 #include <unistd.h>
 #include <fcntl.h>
 
-ncclResult_t GetRunningHostNames(ncclComm_t comm, std::vector<std::string> &hostNames);
+ncclResult_t GetRunningHostNames(mscclSchedulerInitParam *initParam, std::vector<std::string> &hostNames);
 
 #endif

@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <vector>
 
-#include "include/comm.h"
+#include "common.h"
 
 int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths)
 {

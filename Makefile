@@ -21,7 +21,7 @@ LICENSE_TARGETS := $(LICENSE_FILES:%=$(BUILDDIR)/%)
 
 CXXFLAGS := --compiler-options -fPIC,-shared,-DNCCL
 LDFLAGS := --linker-options -soname,$(LIBSONAME)
-INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include
+INC := -I$(BIN_HOME)/include -I$(SRC_HOME)/src/include -Isrc/include
 
 ifeq ($(PLATFORM), RCCL)
 	CXXFLAGS := -fPIC -shared -DRCCL

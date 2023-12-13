@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
-#include "include/parser.h"
+#include "parser.h"
 
 ncclResult_t mscclXmlGetChar(FILE* file, char* c) {
   if (fread(c, 1, 1, file) == 0) {

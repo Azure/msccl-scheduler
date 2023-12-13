@@ -20,20 +20,13 @@
 #else 
   #include "nccl.h"
 #endif
-#include "comm.h"
-#include "bootstrap.h"
 
-#include "include/comm.h"
-#include "include/client.h"
-#include "include/parser.h"
-#include "include/server.h"
+#include "common.h"
+#include "client.h"
+#include "parser.h"
+#include "server.h"
 #include "include/utils.h"
 
-#ifdef RCCL
-  static const char* mscclExecutorDefaultPath = "librccl.so";
-#else 
-  static const char* mscclExecutorDefaultPath = "libnccl.so";
-#endif
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
 extern "C" bool mscclUnitTestMode() __attribute__((__weak__));
@@ -49,10 +42,10 @@ int world_rank;
 int detectionServerExit;
 std::vector<std::string> runningHostNames;
 std::string fullDirPathStr;
-ncclBootstrapInterface *ncclBootstrapPtr = nullptr;
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
+static mscclSchedulerInitParam *pSchedulerInitParam;
 
 static size_t writeCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
     userp->append((char*)contents, size * nmemb);
@@ -96,8 +89,8 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
     return updatedAlgoDir;
 }
 
-// Load meta information of algorithms
-__hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
+// Load meta information of algorithmsmscclSchedulerParam
+__hidden ncclResult_t mscclSchedulerInit(mscclSchedulerInitParam *initParam) {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
   const char* mscclAlgoShareDir = nullptr;
@@ -106,7 +99,7 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   std::string mscclAlgoDirStr;
   std::string mscclAlgoShareDirStr;
   std::string mscclPackageInstalledAlgoShareDirStr;
-  world_rank = comm->rank;
+  pSchedulerInitParam = initParam;
   
   if (mscclAlgoDir == nullptr) {
     // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
@@ -173,28 +166,16 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
 
-  void* mscclExecutorLib = dlopen(mscclExecutorDefaultPath, RTLD_NOW | RTLD_LOCAL);
-  if (mscclExecutorLib == nullptr) {
-    fprintf(stdout, "%s: %s No ExecutorLib found\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
-      return ncclInvalidUsage;
-  }   
-  
-  ncclBootstrapPtr = (ncclBootstrapInterface *)dlsym(mscclExecutorLib, "ncclBootstrap");
-  if (ncclBootstrapPtr == nullptr) {
-    fprintf(stdout, "%s: %s Failed to find msccl Executor symbol ncclBootstrap\n", MSCCL_SCHEDULER_NAME, LOG_ERROR);
-      return ncclInvalidUsage;
-  }
+  fprintf(stdout, "%s: %s Start to get running HostNames, rank:%d, nrank:%d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, initParam->rank, initParam->nRanks);
 
-  fprintf(stdout, "%s: %s Start to get running HostNames, rank:%d, nrank:%d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, comm->rank, comm->nRanks);
-
-  if (GetRunningHostNames(comm, runningHostNames) != ncclSuccess)
+  if (GetRunningHostNames(initParam, runningHostNames) != ncclSuccess)
   {
     return ncclInvalidUsage;
   }
 
   if (0 == world_rank)
   {  
-    if (pthread_create(&detectionServerThread, NULL, detectionServer, &comm->nNodes))
+    if (pthread_create(&detectionServerThread, NULL, detectionServer, &initParam->nNodes))
     {
       fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
       return ncclInvalidUsage;
@@ -203,6 +184,33 @@ __hidden ncclResult_t mscclSchedulerInit(ncclComm_t comm) {
   detectionServerExit=false;
   
   return ret;
+}
+
+static __inline__ int ncclTypeSize(ncclDataType_t type) {
+   switch (type) {
+    case ncclInt8:
+    case ncclUint8:
+#if defined(__CUDA_FP8_TYPES_EXIST__)
+    case ncclFp8E4M3:
+    case ncclFp8E5M2:
+#endif
+      return 1;
+    case ncclFloat16:
+#if defined(__CUDA_BF16_TYPES_EXIST__)
+    case ncclBfloat16:
+#endif
+      return 2;
+    case ncclInt32:
+    case ncclUint32:
+    case ncclFloat32:
+      return 4;
+    case ncclInt64:
+    case ncclUint64:
+    case ncclFloat64:
+      return 8;
+    default:
+      return -1;
+  }
 }
 
 __hidden ncclResult_t mscclScheduleAlternative(std::string xmlPath)
@@ -249,13 +257,13 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
       }
       fprintf(stdout, "%s: %s start to send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
       for (int i =1;i<param->nRanks;i++){
-          ncclBootstrapPtr->send(param->comm->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
+          pSchedulerInitParam->send(pSchedulerInitParam->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
       }
       fprintf(stdout, "%s: %s finish send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     }
     else{
       fprintf(stdout, "%s: %s start to receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
-      ncclBootstrapPtr->receive(param->comm->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
+      pSchedulerInitParam->receive(pSchedulerInitParam->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
       fprintf(stdout, "%s: %s finish receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
       char* token = strtok(arr, "\0");
       while (token != nullptr) {
