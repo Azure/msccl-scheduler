@@ -10,6 +10,7 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <string>
+#include <cstring>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <pthread.h>
@@ -45,7 +46,6 @@ std::string fullDirPathStr;
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
-static mscclSchedulerInitParam *pSchedulerInitParam;
 
 static size_t writeCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
     userp->append((char*)contents, size * nmemb);
@@ -99,7 +99,7 @@ __hidden ncclResult_t mscclSchedulerInit(mscclSchedulerInitParam *initParam) {
   std::string mscclAlgoDirStr;
   std::string mscclAlgoShareDirStr;
   std::string mscclPackageInstalledAlgoShareDirStr;
-  pSchedulerInitParam = initParam;
+  world_rank = initParam->rank;
   
   if (mscclAlgoDir == nullptr) {
     // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
@@ -218,7 +218,7 @@ __hidden ncclResult_t mscclScheduleAlternative(std::string xmlPath)
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
 
   // append a new algorithm into the algorithmmetas by opening a new xml file.
-  fprintf(stdout, "%s: %s ppend a new algorithm into the algorithmmetas, xml: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, xmlPath.c_str());
+  fprintf(stdout, "%s: %s append a new algorithm into the algorithmmetas, xml: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, xmlPath.c_str());
   mscclAlgoMetas.emplace_back();
   tmpRet = mscclGetAlgoMetaFromXmlFile(xmlPath.c_str(), &(mscclAlgoMetas.back()));
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
@@ -237,6 +237,8 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
     std::vector<std::string> xmlPaths;
     int nRet = 0;
     char* arr = new char[BUFFER_SIZE];
+    std::memset(arr, 0, BUFFER_SIZE);
+    arr[0] = '\0'; 
 
     if (0 == param->rank)
     {
@@ -257,13 +259,13 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
       }
       fprintf(stdout, "%s: %s start to send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
       for (int i =1;i<param->nRanks;i++){
-          pSchedulerInitParam->send(pSchedulerInitParam->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
+          param->send(param->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
       }
       fprintf(stdout, "%s: %s finish send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     }
     else{
       fprintf(stdout, "%s: %s start to receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
-      pSchedulerInitParam->receive(pSchedulerInitParam->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
+      param->receive(param->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
       fprintf(stdout, "%s: %s finish receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
       char* token = strtok(arr, "\0");
       while (token != nullptr) {
@@ -300,7 +302,7 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
     bool msgSizeIsValid =
       param->count > 0 && (param->count % m.nChunksPerLoop) == 0 &&
       nBytes >= m.minBytes && (m.maxBytes == 0 || nBytes <= m.maxBytes);
-    fprintf(stdout, "%s: %s select algorithm isInPlace %d, AlgoMeta Size: %ld, msgSizeIsValid: %d, m.nRanks == param->nRanks: %d, m.func == param->func:%d, isInPlace ? m.inPlace : m.outOfPlace:%d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, isInPlace, mscclAlgoMetas.size(), msgSizeIsValid, m.nRanks == param->nRanks, m.func == param->func, isInPlace ? m.inPlace : m.outOfPlace);  
+    // fprintf(stdout, "%s: %s select algorithm isInPlace %d, AlgoMeta Size: %ld, msgSizeIsValid: %d, m.nRanks == param->nRanks: %d, m.func == param->func:%d, isInPlace ? m.inPlace : m.outOfPlace:%d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, isInPlace, mscclAlgoMetas.size(), msgSizeIsValid, m.nRanks == param->nRanks, m.func == param->func, isInPlace ? m.inPlace : m.outOfPlace);  
     if (msgSizeIsValid &&
         m.nRanks == param->nRanks &&
         m.func == param->func &&

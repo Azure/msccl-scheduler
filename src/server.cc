@@ -212,8 +212,11 @@ void *detectionServer(void *args)
             fprintf(stdout, "%s: %s Detection Server Received: %s and will start the detect NIC failure routine now.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, msg.c_str());
             // detect NIC failure routine start.
             auto failed_nic = detectNicFailure();
+            fprintf(stdout, "%s: %s failed nic pair is: %d", MSCCL_SCHEDULER_NAME, LOG_INFO, failed_nic);
             std::string algoFileFullPath = genNewSchedule(failed_nic, nNodes);
+            fprintf(stdout, "%s: %s generated new schedule is: %s", MSCCL_SCHEDULER_NAME, LOG_INFO, algoFileFullPath.c_str());
             applyNewSchedule(algoFileFullPath);
+            fprintf(stdout, "%s: %s apply new schedule complete", MSCCL_SCHEDULER_NAME, LOG_INFO);
             std::string response = algoFileFullPath;
             send(client_socket, response.c_str(), response.size(), 0);
         }
