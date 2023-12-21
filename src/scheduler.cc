@@ -40,7 +40,6 @@ static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata
 
 static pthread_t detectionServerThread;  
 int world_rank;
-int detectionServerExit;
 std::vector<std::string> runningHostNames;
 std::string fullDirPathStr;
 
@@ -174,15 +173,23 @@ __hidden ncclResult_t mscclSchedulerInit(mscclSchedulerInitParam *initParam) {
   }
 
   if (0 == world_rank)
-  {  
-    if (pthread_create(&detectionServerThread, NULL, detectionServer, &initParam->nNodes))
+  {
+    pthread_attr_t attr;
+    struct sched_param param;
+    int policy = SCHED_FIFO;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setschedpolicy(&attr, policy);
+    int max_priority = sched_get_priority_max(policy);
+    param.sched_priority = max_priority;
+    pthread_attr_setschedparam(&attr, &param);
+  
+    if (pthread_create(&detectionServerThread, &attr, detectionServer, &initParam->nNodes))
     {
       fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
       return ncclInvalidUsage;
     }
   }
-  detectionServerExit=false;
-  
   return ret;
 }
 
@@ -307,7 +314,6 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
         m.nRanks == param->nRanks &&
         m.func == param->func &&
         (isInPlace ? m.inPlace : m.outOfPlace)) {
-      fprintf(stdout, "%s: %s not loaded for current rank, load it\n", MSCCL_SCHEDULER_NAME, LOG_INFO);  
       // If not loaded for current rank, load it
       if (rankToAlgoHandles[i].find(param->rank) == rankToAlgoHandles[i].end()) {
         mscclAlgoHandle_t algoHandle;
@@ -341,7 +347,7 @@ __hidden ncclResult_t mscclSchedulerTearDown() {
 
   if (0 == world_rank)
   {
-    detectionServerExit = true;
+    shutDownServer();
     pthread_join(detectionServerThread, NULL);
   }
 

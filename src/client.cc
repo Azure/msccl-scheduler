@@ -11,15 +11,17 @@
 #include <unistd.h>
 #include <vector>
 
-#include "common.h"
+#include "client.h"
 
-int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths)
+response* request(std::string message)
 {
+    response* resp = new response;
+    resp->returncode = 1;
     // Create a socket
     int client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket == -1) {
         fprintf(stdout, "%s: %s Failed to create socket: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
-        return 1;
+        return resp;
     }
 
     // Set up server details
@@ -29,38 +31,64 @@ int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths)
     server_address.sin_port = htons(SERVER_PORT);
     if (inet_addr(HOST_ADDR) == -1) {
         fprintf(stdout, "%s: %s Invalid IP address: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, HOST_ADDR);
-        return 1;
+        return resp;
     }
     
     fprintf(stdout, "%s: %s start to connect to server\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     // Connect to the server
     if (connect(client_socket, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
         fprintf(stdout, "%s: %s Failed to connect to server: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
-        return 1;
+        return resp;
     }
 
     // Send data to the server
-    std::string message = "detect_nic";
     if (send(client_socket, message.c_str(), message.size(), 0) < 0) {
         fprintf(stdout, "%s: %s Failed to send message: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
-        return 1;
+        return resp;
     }
 
     // Receive the response from the server
-    char buffer[BUFFER_SIZE] = {0};
-    if (recv(client_socket, buffer, sizeof(buffer) - 1, 0) < 0) {
+    std::memset(resp->buffer, 0, sizeof(resp->buffer));
+    if (recv(client_socket, resp->buffer, sizeof(resp->buffer) - 1, 0) < 0) {
         fprintf(stdout, "%s: %s Failed to receive response: %s\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, std::strerror(errno));
-        return 1;
-    }
-
-    std::istringstream iss(buffer);
-    std::string temp;
-
-    while (std::getline(iss, temp, ';')) {
-        xmlPaths.push_back(temp);
+        return resp;
     }
     
     // Close the socket
     close(client_socket);
-    return 0;
+    resp->returncode=0;
+    
+    return resp;
 }
+
+int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths)
+{
+    response *resp = request("detect_nic");
+    int ret = 1;
+    if (resp->returncode == 0)
+    {
+        std::istringstream iss(resp->buffer);
+        std::string temp;
+
+        while (std::getline(iss, temp, ';')) {
+            xmlPaths.push_back(temp);
+        }
+        ret = 0;
+    }
+    delete resp;
+    ret = 1;
+    return ret;
+}
+
+int shutDownServer()
+{
+    int ret = 1;
+    response *resp = request("shutdown");
+    if (resp->returncode == 0)
+    {
+        ret = 0;
+    }
+    delete resp;
+    return ret;
+}
+

@@ -5,5 +5,14 @@
 #ifndef MSCCL_CLIENT_H_
 #define MSCCL_CLIENT_H_
 
+#include "common.h"
+
+typedef struct
+{
+    char buffer[BUFFER_SIZE];
+    int returncode;
+} response;
+
 int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths);
+int shutDownServer();
 #endif
