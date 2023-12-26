@@ -32,19 +32,17 @@ def topology(nnode: int):
             G.add_edge((a, "mlx5", b), (-1, "IB", b % 2), capacity=PCIE_BW)
     return G, compute_nodes
 
-
-k_value = 1
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='default')
     parser.add_argument('fileName', type=str, help='the output file name')
-    parser.add_argument('nodes', type=int, help='number of nodes in the cluster', default='2')
-    parser.add_argument('inplace', type=int, help='whether use inplace during data transfer', default='0')
+    parser.add_argument('--nodes', type=int, help='number of nodes in the cluster', default=2)
+    parser.add_argument('--kvalue', type=int, help='whether use inplace during data transfer', default=1)
+    parser.add_argument('--inplace', type=int, help='whether use inplace during data transfer', default=0)
     args = parser.parse_args()
     
     topo, compute_nodes = topology(args.nodes)
     (U, k), (Ts, Cs) = pipeline_allgather.optimal_pipeline_spanning_trees(
-        topo, compute_nodes=compute_nodes, fixed_K=k_value)
+        topo, compute_nodes=compute_nodes, fixed_K=args.kvalue)
     # print(f"U={U}, k={k}")
     # print(f"{len(compute_nodes) * k / U} GBps")
 

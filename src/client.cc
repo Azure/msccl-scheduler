@@ -61,23 +61,17 @@ response* request(std::string message)
     return resp;
 }
 
-int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths)
+std::string getOptimizedAlgoFile()
 {
+    std::string strRet;
     response *resp = request("detect_nic");
-    int ret = 1;
     if (resp->returncode == 0)
     {
-        std::istringstream iss(resp->buffer);
-        std::string temp;
-
-        while (std::getline(iss, temp, ';')) {
-            xmlPaths.push_back(temp);
-        }
-        ret = 0;
+        fprintf(stdout, "%s: %s receive: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, resp->buffer);
+        strRet = resp->buffer;
     }
     delete resp;
-    ret = 1;
-    return ret;
+    return strRet;
 }
 
 int shutDownServer()

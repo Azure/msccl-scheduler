@@ -13,6 +13,6 @@ typedef struct
     int returncode;
 } response;
 
-int getOptimizedAlgoFiles(std::vector<std::string> &xmlPaths);
+std::string getOptimizedAlgoFile();
 int shutDownServer();
 #endif

@@ -225,11 +225,13 @@ __hidden ncclResult_t mscclScheduleAlternative(std::string xmlPath)
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
 
   // append a new algorithm into the algorithmmetas by opening a new xml file.
-  fprintf(stdout, "%s: %s append a new algorithm into the algorithmmetas, xml: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, xmlPath.c_str());
   mscclAlgoMetas.emplace_back();
   tmpRet = mscclGetAlgoMetaFromXmlFile(xmlPath.c_str(), &(mscclAlgoMetas.back()));
-  rankToAlgoHandles.resize(mscclAlgoMetas.size());
-
+  if (ncclSuccess == tmpRet)
+  {
+    fprintf(stdout, "%s: %s append a new algorithm: %s into the algorithem metas success \n", MSCCL_SCHEDULER_NAME, LOG_INFO, xmlPath.c_str());
+    rankToAlgoHandles.resize(mscclAlgoMetas.size());
+  }
   return ncclSuccess;
 }
 
@@ -238,10 +240,10 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
   ncclResult_t ret = ncclSuccess;
 
   param->scheduled = false;
-
+  
+  std::string algoFile;
   if (param->repair)
   {
-    std::vector<std::string> xmlPaths;
     int nRet = 0;
     char* arr = new char[BUFFER_SIZE];
     std::memset(arr, 0, BUFFER_SIZE);
@@ -249,40 +251,27 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
 
     if (0 == param->rank)
     {
-      nRet = getOptimizedAlgoFiles(xmlPaths);
-      fprintf(stdout, "%s: %s start to prepare send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
-      if (0 == nRet)
+      algoFile = getOptimizedAlgoFile();
+      if (!algoFile.empty())
       {
         size_t pos = 0;
-        for (const auto& str : xmlPaths) {
-          if (pos < BUFFER_SIZE)
-          {
-            std::copy(str.begin(), str.end(), arr + pos);
-            pos += str.size();
-            arr[pos] = '\0'; 
-            ++pos;
-          }
-        }
+        fprintf(stdout, "%s: %s start to send new algorithm:%s to other ranks\n", MSCCL_SCHEDULER_NAME, LOG_INFO, algoFile.c_str());
+        
+        std::copy(algoFile.begin(), algoFile.end(), arr);
+        pos += algoFile.size();
+        arr[pos] = '\0'; 
       }
-      fprintf(stdout, "%s: %s start to send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
       for (int i =1;i<param->nRanks;i++){
           param->send(param->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
       }
-      fprintf(stdout, "%s: %s finish send new algorithm to peers\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     }
     else{
       fprintf(stdout, "%s: %s start to receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
       param->receive(param->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
       fprintf(stdout, "%s: %s finish receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
-      char* token = strtok(arr, "\0");
-      while (token != nullptr) {
-        xmlPaths.push_back(token);
-        token = strtok(nullptr, "\0");
-      }
+      algoFile = arr;
     }
-    for (const auto &xmlPath : xmlPaths) {
-        mscclScheduleAlternative(xmlPath);
-    }
+    mscclScheduleAlternative(algoFile);
     delete[] arr;
   }
 
@@ -318,6 +307,7 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
       if (rankToAlgoHandles[i].find(param->rank) == rankToAlgoHandles[i].end()) {
         mscclAlgoHandle_t algoHandle;
         ret = mscclLoadAlgo(m.filePath.c_str(), &algoHandle, param->rank);
+        fprintf(stdout, "%s: %s load algorithm: %s complete, result: %d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, m.filePath.c_str(), ret);
         if (ret != ncclSuccess) {
           return ret;
         }
@@ -325,6 +315,23 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
       }
       param->handle = rankToAlgoHandles[i][param->rank];
       param->scheduled = true;
+
+      // if (param->repair)
+      // {
+      //   int *status = new int[param->nRanks];
+      //   int all_status =0;
+      //   for (int i = 0; i < param->nRanks; ++i) {
+      //     status[i] = -1;
+      //   }
+      //   status[param->rank] = 0;
+      //   param->allgather(param->bootstrap, status, sizeof(int) * param->nRanks);
+      //     for (int i = 0; i < param->nRanks; ++i) {
+      //       fprintf(stdout, "%s: %s finish all gather, status:%d is:%d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, i, status[i]);
+      //       all_status |= status[i];
+      //   }
+      //   fprintf(stdout, "%s: %s finish all gather, all status is:%d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, all_status);
+      // }
+      
       return ncclSuccess;
     }
   }

@@ -43,9 +43,7 @@ std::string testNicPairs(std::pair<int, int> nicPair)
                             std::to_string(nicPair.second) +  " " + 
                             std::to_string(runningHostNames.size()) + " " + 
                             hostList;
-                            // + " > result_" + std::to_string(nicPair.first) + "_" + std::to_string(nicPair.second) + ".txt"
 
-    //std:system(command.c_str()); 
     std::string line;
     FILE* stream = popen(command.c_str(), "r");
 
@@ -55,7 +53,7 @@ std::string testNicPairs(std::pair<int, int> nicPair)
         while (!feof(stream) && !ferror(stream)) {
             if (fgets(buffer, max_buffer, stream) != NULL) {
                 line = buffer;
-                fprintf(stdout, "%s: %s nic detection logs: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, line.c_str()); // Print output dynamically
+                // fprintf(stdout, "%s: %s nic detection logs: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, line.c_str()); // Print output dynamically
                 if (line.find("No device found") != std::string::npos)
                 {
                     fprintf(stdout, "%s: %s No device found detected on pair %s!\n", MSCCL_SCHEDULER_NAME, LOG_WARN, pair_key.c_str());
@@ -99,43 +97,8 @@ int detectNicFailure()
             failedPairsSet.insert(result);
         }
     }
-
-    for (const std::string &pair : failedPairsSet)
-    {
-        fprintf(stdout, "%s: %s Failed nic pairs %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pair.c_str());
-    }
-
     return 0;
 }
-
-// int detectNicFailure()
-// {
-//     std::vector<std::pair<int, int>> nic_pair;
-//     std::set<std::string> failedPairsSet;
-
-//     for (int i = 0; i < 8; ++i)
-//     {
-//         nic_pair.push_back(std::make_pair(i, i));
-//     }
-    
-//     for (std::pair<int, int> pair : nic_pair)
-//     {
-//         fprintf(stdout, "%s: %s starting to test nic pairs %d:%d.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pair.first, pair.second);
-//         std::string result = testNicPairs(pair);
-//         fprintf(stdout, "%s: %s Finished test nic pairs %d:%d.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pair.first, pair.second);
-//         if (!result.empty())
-//         {
-//             failedPairsSet.insert(result);
-//         }
-//     }
-
-//     for (const std::string &pair : failedPairsSet)
-//     {
-//         fprintf(stdout, "%s: %s Failed nic pairs %s.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, pair.c_str());
-//     }
-
-//     return 0;
-// }
 
 std::string genNewSchedule(int nics, int nNodes) 
 {
@@ -144,17 +107,14 @@ std::string genNewSchedule(int nics, int nNodes)
     std::string command = "python " + 
                             mscclShareDirPath + 
                             "scripts/generate_newschedule.py " +
-                            algoFileFullPath + " " +
-                            std::to_string(nNodes) + " 0";
-    fprintf(stdout, "%s: %s generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
+                            algoFileFullPath + " --nodes " +
+                            std::to_string(nNodes);
     std:system(command.c_str());
-    fprintf(stdout, "%s: %s finished execution generateNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
     return algoFileFullPath;
 }
 
 void applyNewSchedule(std::string algoFileFullPath) 
 {
-    fprintf(stdout, "%s: %s applyNewSchedule Enterred\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
     char localHostName[1024];
     gethostname(localHostName, 1024);
 
@@ -166,7 +126,6 @@ void applyNewSchedule(std::string algoFileFullPath)
                                     algoFileFullPath + " " +
                                     runningHostNames[i] + ":" +
                                     algoFileFullPath; 
-            fprintf(stdout, "%s: %s applyNewSchedule command: %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, command.c_str());
             std:system(command.c_str());    
         }
     }
@@ -179,7 +138,6 @@ void *detectionServer(void *args)
     fprintf(stdout, "%s: %s Starting Server thread.\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
 
     mscclShareDirPath = fullDirPathStr.substr(0, fullDirPathStr.rfind("msccl-algorithms"));
-    fprintf(stdout, "%s: %s MSCCL Share file path is %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, mscclShareDirPath.c_str());
 
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
@@ -232,12 +190,9 @@ void *detectionServer(void *args)
 
         if (msg == "detect_nic")
         {
-            fprintf(stdout, "%s: %s Detection Server Received: %s and will start the detect NIC failure routine now.\n", MSCCL_SCHEDULER_NAME, LOG_INFO, msg.c_str());
             // detect NIC failure routine start.
             auto failed_nic = detectNicFailure();
-            fprintf(stdout, "%s: %s failed nic pair is: %d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, failed_nic);
             std::string algoFileFullPath = genNewSchedule(failed_nic, nNodes);
-            fprintf(stdout, "%s: %s generated new schedule is: %s \n", MSCCL_SCHEDULER_NAME, LOG_INFO, algoFileFullPath.c_str());
             applyNewSchedule(algoFileFullPath);
             fprintf(stdout, "%s: %s apply new schedule complete \n", MSCCL_SCHEDULER_NAME, LOG_INFO);
             std::string response = algoFileFullPath;
