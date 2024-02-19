@@ -76,8 +76,11 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
     curl_global_cleanup();
     if (vmSize.find("ND") != std::string::npos && vmSize.find("A100") != std::string::npos) {
       updatedAlgoDir.append("/ndv4");
-    }
-    else{
+    }else if (vmSize.find("NC") != std::string::npos && vmSize.find("A100") != std::string::npos) {
+      updatedAlgoDir.append("/ncv4");
+    }else if (vmSize.find("ND") != std::string::npos && vmSize.find("H100") != std::string::npos) {
+      updatedAlgoDir.append("/ndv5");
+    }else{
       fprintf(stdout, "%s: %s There is no related algo file for the detected Azure VM SKU:%s been finded, MSCCL will use nccl as default communication channel\n", MSCCL_SCHEDULER_NAME, LOG_WARN, vmSize.c_str());
     }
     return updatedAlgoDir;
