@@ -1,6 +1,6 @@
 /*************************************************************************
- * Copyright (c) Microsoft Corporation.
- * Licensed under the MIT License.
+ * Copyright (c) 2019-2023 Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See LICENSE.txt for license information
  ************************************************************************/
 
 #include <cstdio>
@@ -10,19 +10,23 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <string>
+#include <cstring>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <pthread.h>
+#include <iostream>
 
 #ifdef RCCL
   #include "rccl/rccl.h"
 #else 
   #include "nccl.h"
 #endif
+
+#include "common.h"
+#include "client.h"
 #include "parser.h"
-
-#define __hidden __attribute__ ((visibility("hidden")))
-
-#define MSCCL_SCHEDULER_NAME "github.com/Azure/msccl-scheduler"
+#include "server.h"
+#include "include/utils.h"
 
 static const char* mscclAlgoDirEnv = "MSCCL_ALGO_DIR";
 static const char* mscclAlgoDefaultDir = "msccl-algorithms";
@@ -34,9 +38,10 @@ static const char* mscclPackageInstalledAlgoShareDirPath = "/usr/share/msccl-sch
 static const char* mscclUnitTestPackageInstalledAlgoShareDirPath = "/usr/share/msccl-scheduler/msccl-unit-test-algorithms";
 static const char* mscclAzureVMDetectionAgent = "http://169.254.169.254/metadata/instance?api-version=2019-06-04";
 
-static const char* LOG_INFO = "INFO";
-static const char* LOG_WARN = "WARN";
-static const char* LOG_ERROR = "ERROR";
+static pthread_t detectionServerThread;  
+int world_rank;
+std::vector<std::string> runningHostNames;
+std::string fullDirPathStr;
 
 static std::vector<mscclAlgoMeta> mscclAlgoMetas;
 static std::vector<std::map<int, mscclAlgoHandle_t>> rankToAlgoHandles;
@@ -86,16 +91,18 @@ static std::string updateAlgoDirByVMSize(std::string algoDir){
     return updatedAlgoDir;
 }
 
-// Load meta information of algorithms
-__hidden ncclResult_t mscclSchedulerInit() {
+// Load meta information of algorithmsmscclSchedulerParam
+__hidden ncclResult_t mscclSchedulerInit(mscclSchedulerInitParam *initParam) {
   ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
   const char* mscclAlgoDir = getenv(mscclAlgoDirEnv);
   const char* mscclAlgoShareDir = nullptr;
   const char* mscclPackageInstalledAlgoShareDir = nullptr;
+  const char *fullDirPath = nullptr;
   std::string mscclAlgoDirStr;
   std::string mscclAlgoShareDirStr;
   std::string mscclPackageInstalledAlgoShareDirStr;
-  const char *fullDirPath = nullptr;
+  world_rank = initParam->rank;
+  
   if (mscclAlgoDir == nullptr) {
     // Try to find default algorithm directory based on scheduler.so and shcheduler algo installtion path.
     Dl_info dl_info;
@@ -140,6 +147,8 @@ __hidden ncclResult_t mscclSchedulerInit() {
     fullDirPath = mscclAlgoDir;
   }
   fprintf(stdout, "%s: %s Using MSCCL Algo files from %s\n", MSCCL_SCHEDULER_NAME, LOG_INFO, fullDirPath);
+  fullDirPathStr = std::string(fullDirPath);
+
   while ((entry = readdir(dp))) {
     if (entry->d_type != DT_LNK && entry->d_type != DT_REG) {
       continue;
@@ -158,16 +167,46 @@ __hidden ncclResult_t mscclSchedulerInit() {
     return ncclInvalidUsage;
   }
   rankToAlgoHandles.resize(mscclAlgoMetas.size());
+
+  fprintf(stdout, "%s: %s Start to get running HostNames, rank:%d, nrank:%d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, initParam->rank, initParam->nRanks);
+
+  if (GetRunningHostNames(initParam, runningHostNames) != ncclSuccess)
+  {
+    return ncclInvalidUsage;
+  }
+
+  if (0 == world_rank)
+  {
+    pthread_attr_t attr;
+    struct sched_param param;
+    int policy = SCHED_FIFO;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setschedpolicy(&attr, policy);
+    int max_priority = sched_get_priority_max(policy);
+    param.sched_priority = max_priority;
+    pthread_attr_setschedparam(&attr, &param);
+  
+    if (pthread_create(&detectionServerThread, &attr, detectionServer, &initParam->nNodes))
+    {
+      fprintf(stdout, "%s: %s Create detection server failed, error %d\n", MSCCL_SCHEDULER_NAME, LOG_ERROR, errno);
+      return ncclInvalidUsage;
+    }
+  }
   return ret;
 }
 
 static __inline__ int ncclTypeSize(ncclDataType_t type) {
-  switch (type) {
+   switch (type) {
     case ncclInt8:
     case ncclUint8:
+#if defined(__CUDA_FP8_TYPES_EXIST__)
+    case ncclFp8E4M3:
+    case ncclFp8E5M2:
+#endif
       return 1;
     case ncclFloat16:
-#if defined(RCCL_BFLOAT16)
+#if defined(__CUDA_BF16_TYPES_EXIST__)
     case ncclBfloat16:
 #endif
       return 2;
@@ -184,11 +223,60 @@ static __inline__ int ncclTypeSize(ncclDataType_t type) {
   }
 }
 
+__hidden ncclResult_t mscclScheduleAlternative(std::string xmlPath)
+{
+  ncclResult_t ret = ncclSuccess, tmpRet = ncclSuccess;
+
+  // append a new algorithm into the algorithmmetas by opening a new xml file.
+  mscclAlgoMetas.emplace_back();
+  tmpRet = mscclGetAlgoMetaFromXmlFile(xmlPath.c_str(), &(mscclAlgoMetas.back()));
+  if (ncclSuccess == tmpRet)
+  {
+    fprintf(stdout, "%s: %s append a new algorithm: %s into the algorithem metas success \n", MSCCL_SCHEDULER_NAME, LOG_INFO, xmlPath.c_str());
+    rankToAlgoHandles.resize(mscclAlgoMetas.size());
+  }
+  return ncclSuccess;
+}
+
 // Select algorithm, load if necessary
 __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param) {
   ncclResult_t ret = ncclSuccess;
 
   param->scheduled = false;
+  
+  std::string algoFile;
+  if (param->repair)
+  {
+    int nRet = 0;
+    char* arr = new char[BUFFER_SIZE];
+    std::memset(arr, 0, BUFFER_SIZE);
+    arr[0] = '\0'; 
+
+    if (0 == param->rank)
+    {
+      algoFile = getOptimizedAlgoFile();
+      if (!algoFile.empty())
+      {
+        size_t pos = 0;
+        fprintf(stdout, "%s: %s start to send new algorithm:%s to other ranks\n", MSCCL_SCHEDULER_NAME, LOG_INFO, algoFile.c_str());
+        
+        std::copy(algoFile.begin(), algoFile.end(), arr);
+        pos += algoFile.size();
+        arr[pos] = '\0'; 
+      }
+      for (int i =1;i<param->nRanks;i++){
+          param->send(param->bootstrap, i, TAG_ALGOINFO, arr, BUFFER_SIZE);
+      }
+    }
+    else{
+      fprintf(stdout, "%s: %s start to receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
+      param->receive(param->bootstrap, 0, TAG_ALGOINFO, arr, BUFFER_SIZE);
+      fprintf(stdout, "%s: %s finish receive new algorithm from rank 0\n", MSCCL_SCHEDULER_NAME, LOG_INFO);
+      algoFile = arr;
+    }
+    mscclScheduleAlternative(algoFile);
+    delete[] arr;
+  }
 
   // Whether the algorithm is in-place
   bool isInPlace = false;
@@ -213,6 +301,7 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
     bool msgSizeIsValid =
       param->count > 0 && (param->count % m.nChunksPerLoop) == 0 &&
       nBytes >= m.minBytes && (m.maxBytes == 0 || nBytes <= m.maxBytes);
+    // fprintf(stdout, "%s: %s select algorithm isInPlace %d, AlgoMeta Size: %ld, msgSizeIsValid: %d, m.nRanks == param->nRanks: %d, m.func == param->func:%d, isInPlace ? m.inPlace : m.outOfPlace:%d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, isInPlace, mscclAlgoMetas.size(), msgSizeIsValid, m.nRanks == param->nRanks, m.func == param->func, isInPlace ? m.inPlace : m.outOfPlace);  
     if (msgSizeIsValid &&
         m.nRanks == param->nRanks &&
         m.func == param->func &&
@@ -221,6 +310,7 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
       if (rankToAlgoHandles[i].find(param->rank) == rankToAlgoHandles[i].end()) {
         mscclAlgoHandle_t algoHandle;
         ret = mscclLoadAlgo(m.filePath.c_str(), &algoHandle, param->rank);
+        fprintf(stdout, "%s: %s load algorithm: %s complete, result: %d\n", MSCCL_SCHEDULER_NAME, LOG_INFO, m.filePath.c_str(), ret);
         if (ret != ncclSuccess) {
           return ret;
         }
@@ -228,6 +318,23 @@ __hidden ncclResult_t mscclSchedulerSelectAlgo(struct mscclSchedulerParam* param
       }
       param->handle = rankToAlgoHandles[i][param->rank];
       param->scheduled = true;
+
+      // if (param->repair)
+      // {
+      //   int *status = new int[param->nRanks];
+      //   int all_status =0;
+      //   for (int i = 0; i < param->nRanks; ++i) {
+      //     status[i] = -1;
+      //   }
+      //   status[param->rank] = 0;
+      //   param->allgather(param->bootstrap, status, sizeof(int) * param->nRanks);
+      //     for (int i = 0; i < param->nRanks; ++i) {
+      //       fprintf(stdout, "%s: %s finish all gather, status:%d is:%d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, i, status[i]);
+      //       all_status |= status[i];
+      //   }
+      //   fprintf(stdout, "%s: %s finish all gather, all status is:%d \n", MSCCL_SCHEDULER_NAME, LOG_INFO, all_status);
+      // }
+      
       return ncclSuccess;
     }
   }
@@ -247,6 +354,13 @@ __hidden ncclResult_t mscclSchedulerTearDown() {
   }
   mscclAlgoMetas.clear();
   rankToAlgoHandles.clear();
+
+  if (0 == world_rank)
+  {
+    shutDownServer();
+    pthread_join(detectionServerThread, NULL);
+  }
+
   return ret;
 }
 

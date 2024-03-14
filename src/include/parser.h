@@ -1,9 +1,6 @@
 /*************************************************************************
- * Copyright (c) 2019-2022, NVIDIA CORPORATION. All rights reserved.
- * Modifications Copyright (c) 2019-2022 Advanced Micro Devices, Inc. All rights reserved.
- * Modifications Copyright (c) Microsoft Corporation. Licensed under the MIT License.
- *
- * See LICENSE.txt for license information
+ * Copyright (c) 2019-2023 Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See LICENSE.txt for license information
  ************************************************************************/
 
 #ifndef MSCCL_PARSER_H_
@@ -18,6 +15,7 @@
 #else
   #include "nccl.h"
 #endif
+
 #include "msccl/msccl_scheduler.h"
 
 // A few constraints to make the implementation easy
